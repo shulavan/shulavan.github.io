@@ -159,9 +159,10 @@
             <div class="flex items-center gap-2 mb-2">
                 <div class="bg-white rounded-lg flex-1 flex items-center px-2 py-1 relative">
                     <i class="fas fa-search text-gray-400 mr-2"></i>
-                    <input type="text" id="search-input" class="w-full text-fixed-lg p-2 outline-none bg-transparent" placeholder="入力してください" readonly>
-                    <!-- 歌詞検索時のみ表示されるボタン -->
-                    <button id="btn-do-search" class="hidden bg-indigo-500 text-white px-4 py-2 rounded text-fixed-base ml-2 whitespace-nowrap active:bg-indigo-700">検索</button>
+                    <!-- readonlyを外し、エンターキーで検索できるように変更 -->
+                    <input type="text" id="search-input" class="w-full text-fixed-lg p-2 outline-none bg-transparent" placeholder="キーワードを入力..." onkeypress="handleKeyPress(event)">
+                    <!-- 常に表示し、検索実行ボタンとする -->
+                    <button id="btn-do-search" class="bg-indigo-500 text-white px-4 py-2 rounded text-fixed-base ml-2 whitespace-nowrap active:bg-indigo-700">検索</button>
                     <!-- 音声入力 -->
                     <button onclick="startVoiceInput()" class="w-12 h-12 flex items-center justify-center text-indigo-600 bg-indigo-50 rounded-full ml-1 active:bg-indigo-200">
                         <i class="fas fa-microphone text-xl"></i>
@@ -184,7 +185,8 @@
         </div>
 
         <!-- 中部：検索結果リスト -->
-        <div id="search-results-container" class="flex-1 overflow-y-auto bg-gray-100 p-2 pb-60 relative no-scrollbar">
+        <!-- pb-60 を pb-20 に変更して余白を調整 -->
+        <div id="search-results-container" class="flex-1 overflow-y-auto bg-gray-100 p-2 pb-20 relative no-scrollbar">
             <div id="search-status" class="text-center py-4 text-fixed-base text-gray-500">条件を入力してください</div>
             <div id="search-results" class="space-y-3">
                 <!-- 結果アイテムがここに入る -->
@@ -194,34 +196,11 @@
             </div>
         </div>
 
-        <!-- フッター：五十音キーボード＆戻る -->
-        <div id="keyboard-area" class="bg-gray-200 border-t shadow-[0_-2px_10px_rgba(0,0,0,0.1)] absolute bottom-0 left-0 w-full z-30">
-            <!-- 行タブ -->
-            <div id="kana-rows" class="flex overflow-x-auto p-1 bg-gray-300 gap-1 no-scrollbar">
-                <!-- JSで生成 -->
-            </div>
-            <!-- 文字ボタン -->
-            <div class="flex justify-between p-2">
-                <div id="kana-chars" class="flex gap-1 flex-1 justify-around">
-                    <!-- JSで生成 -->
-                </div>
-                <div class="flex flex-col gap-1 ml-2 border-l pl-2 border-gray-300 justify-center">
-                    <div class="flex gap-1">
-                        <button onclick="addKanaMod('濁点')" class="w-12 h-10 bg-white rounded shadow text-fixed-base font-bold active:bg-gray-100">゛</button>
-                        <button onclick="addKanaMod('半濁点')" class="w-12 h-10 bg-white rounded shadow text-fixed-base font-bold active:bg-gray-100">゜</button>
-                    </div>
-                    <div class="flex gap-1">
-                        <button onclick="addKanaMod('促音')" class="w-12 h-10 bg-white rounded shadow text-fixed-base font-bold active:bg-gray-100">小</button>
-                        <button onclick="deleteChar()" class="w-12 h-10 bg-gray-400 text-white rounded shadow text-fixed-base font-bold active:bg-gray-600"><i class="fas fa-backspace"></i></button>
-                    </div>
-                </div>
-            </div>
-            <!-- 戻るボタン -->
-            <div class="absolute -top-14 right-2">
-                <button onclick="closeSearch()" class="btn-material w-14 h-14 bg-red-500 text-white rounded-full flex items-center justify-center shadow-lg active:bg-red-600 border-2 border-white">
-                    <i class="fas fa-arrow-left text-xl"></i>
-                </button>
-            </div>
+        <!-- フッター：戻るボタンのみ残す (キーボードは撤去) -->
+        <div id="keyboard-area" class="absolute bottom-4 right-4 z-30">
+            <button onclick="closeSearch()" class="btn-material w-14 h-14 bg-red-500 text-white rounded-full flex items-center justify-center shadow-lg active:bg-red-600 border-2 border-white">
+                <i class="fas fa-arrow-left text-xl"></i>
+            </button>
         </div>
     </div>
 
@@ -349,10 +328,12 @@
                 </div>
 
                 <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-4 space-y-3">
-                    <div class="flex border-b pb-2">
-                        <span class="w-1/3 text-gray-500 text-fixed-sm">レコード会社</span>
-                        <span id="detail-label" class="w-2/3 text-fixed-base font-bold text-right"></span>
+                    <!-- Wikipedia情報表示エリア (詳細を開いた時に非同期で取得) -->
+                    <div id="detail-wiki-container" class="mb-4 bg-yellow-50 p-3 rounded-lg border border-yellow-200 hidden">
+                        <h4 class="text-fixed-sm font-bold text-yellow-800 border-b border-yellow-300 mb-2 pb-1"><i class="fab fa-wikipedia-w mr-1"></i>Wikipedia 豆知識</h4>
+                        <p id="detail-wiki-text" class="text-fixed-sm text-gray-700 leading-relaxed max-h-32 overflow-y-auto no-scrollbar"></p>
                     </div>
+
                     <div class="flex border-b pb-2">
                         <span class="w-1/3 text-gray-500 text-fixed-sm">発売年</span>
                         <span id="detail-year" class="w-2/3 text-fixed-base font-bold text-right"></span>
@@ -378,7 +359,7 @@
                         <span id="detail-dam-score" class="w-1/2 text-fixed-xl font-bold text-right text-indigo-900"></span>
                     </div>
                     <div class="text-fixed-sm text-gray-400 mt-4 text-center">
-                        ※売上、作詞作曲、DAM番号等は独自の推定モックデータを含みます。
+                        ※売上、作詞作曲、DAM番号等は独自の推定モックデータを含みます。<br>※豆知識はWikipedia APIよりリアルタイム取得しています。
                     </div>
                 </div>
             </div>
@@ -404,34 +385,15 @@
             audio: document.getElementById('audio-preview')
         };
 
-        const KanaTable = [
-            { row: 'あ', chars: ['あ','い','う','え','お'] },
-            { row: 'か', chars: ['か','き','く','け','こ'] },
-            { row: 'さ', chars: ['さ','し','す','せ','そ'] },
-            { row: 'た', chars: ['た','ち','つ','て','と'] },
-            { row: 'な', chars: ['な','に','ぬ','ね','の'] },
-            { row: 'は', chars: ['は','ひ','ふ','へ','ほ'] },
-            { row: 'ま', chars: ['ま','み','む','め','も'] },
-            { row: 'や', chars: ['や','ゆ','よ'] },
-            { row: 'ら', chars: ['ら','り','る','れ','ろ'] },
-            { row: 'わ', chars: ['わ','を','ん'] },
-            { row: 'ABC', chars: ['A','B','C','D','E'] } // 英語入力対応として少し用意（本来はキーボード切替だが今回は簡易化）
-        ];
-
-        // 濁点変換マップ
-        const DakutenMap = { 'か':'が','き':'ぎ','く':'ぐ','け':'げ','こ':'ご','さ':'ざ','し':'じ','す':'ず','せ':'ぜ','そ':'ぞ','た':'だ','ち':'ぢ','つ':'づ','て':'で','と':'ど','は':'ば','ひ':'び','ふ':'ぶ','へ':'べ','ほ':'ぼ' };
-        const HandakutenMap = { 'は':'ぱ','ひ':'ぴ','ふ':'ぷ','へ':'ぺ','ほ':'ぽ' };
-        const SokuonMap = { 'あ':'ぁ','い':'ぃ','う':'ぅ','え':'ぇ','お':'ぉ','や':'ゃ','ゆ':'ゅ','よ':'ょ','つ':'っ','わ':'ゎ' };
-
         // --- 初期化処理 ---
         window.onload = () => {
-            initKanaKeyboard();
             checkUrlParams();
             setupScrollListener();
             updateHistories();
             
-            // 歌詞検索ボタンのイベント
+            // 検索ボタンのイベント
             document.getElementById('btn-do-search').addEventListener('click', () => {
+                State.query = document.getElementById('search-input').value;
                 resetSearch();
                 doSearch();
             });
@@ -449,78 +411,15 @@
             document.getElementById('msg-box').classList.add('hidden');
         }
 
-        // --- 五十音キーボード生成 ---
-        function initKanaKeyboard() {
-            const rowContainer = document.getElementById('kana-rows');
-            KanaTable.forEach((k, index) => {
-                const btn = document.createElement('button');
-                btn.className = `min-w-[48px] h-12 bg-white rounded-t-lg shadow-sm border border-gray-300 text-fixed-lg font-bold text-gray-700 active:bg-blue-100 ${index===0?'bg-blue-100 border-blue-400':''}`;
-                btn.innerText = k.row;
-                btn.onclick = () => selectKanaRow(index, btn);
-                rowContainer.appendChild(btn);
-            });
-            selectKanaRow(0, rowContainer.children[0]); // 初期は「あ」行
-        }
-
-        let currentChars = [];
-        function selectKanaRow(index, activeBtn) {
-            const rows = document.getElementById('kana-rows').children;
-            for(let r of rows) { r.classList.remove('bg-blue-100', 'border-blue-400'); }
-            activeBtn.classList.add('bg-blue-100', 'border-blue-400');
-
-            const charContainer = document.getElementById('kana-chars');
-            charContainer.innerHTML = '';
-            currentChars = KanaTable[index].chars;
-            
-            currentChars.forEach(char => {
-                const btn = document.createElement('button');
-                btn.className = 'flex-1 h-16 bg-white rounded-xl shadow-[0_2px_5px_rgba(0,0,0,0.2)] text-fixed-2xl font-bold text-gray-800 active:bg-gray-200 active:scale-95 transition-transform';
-                btn.innerText = char;
-                btn.onclick = () => inputChar(char);
-                charContainer.appendChild(btn);
-            });
-            // 隙間埋め
-            for(let i = currentChars.length; i < 5; i++) {
-                const dummy = document.createElement('div');
-                dummy.className = 'flex-1';
-                charContainer.appendChild(dummy);
+        // エンターキーでの検索実行
+        function handleKeyPress(e) {
+            if (e.key === 'Enter') {
+                State.query = document.getElementById('search-input').value;
+                resetSearch();
+                doSearch();
+                // スマホのキーボードを閉じるためにフォーカスを外す
+                document.getElementById('search-input').blur();
             }
-        }
-
-        // --- 入力制御 ---
-        function inputChar(char) {
-            State.query += char;
-            updateInputUI();
-            triggerAutoSearch();
-        }
-
-        function deleteChar() {
-            if(State.query.length > 0) {
-                State.query = State.query.slice(0, -1);
-                updateInputUI();
-                triggerAutoSearch();
-            }
-        }
-
-        function addKanaMod(type) {
-            if(State.query.length === 0) return;
-            let lastChar = State.query.slice(-1);
-            let newChar = lastChar;
-            if(type === '濁点' && DakutenMap[lastChar]) newChar = DakutenMap[lastChar];
-            if(type === '半濁点' && HandakutenMap[lastChar]) newChar = HandakutenMap[lastChar];
-            if(type === '促音' && SokuonMap[lastChar]) newChar = SokuonMap[lastChar];
-            
-            if(newChar !== lastChar) {
-                State.query = State.query.slice(0, -1) + newChar;
-                updateInputUI();
-                triggerAutoSearch();
-            }
-        }
-
-        function updateInputUI() {
-            const input = document.getElementById('search-input');
-            input.value = State.query;
-            input.scrollLeft = input.scrollWidth;
         }
 
         // --- 画面切り替え ---
@@ -532,25 +431,25 @@
             document.getElementById('view-top').classList.add('hidden');
             document.getElementById('view-search').classList.remove('hidden');
             
-            const btnDoSearch = document.getElementById('btn-do-search');
-            const keyboardArea = document.getElementById('keyboard-area');
+            const searchInput = document.getElementById('search-input');
             const searchResultsContainer = document.getElementById('search-results-container');
             
-            // モード別のUI調整
+            // プレースホルダーの調整
             if(mode === 'lyrics') {
-                btnDoSearch.classList.remove('hidden');
-                document.getElementById('search-input').placeholder = "歌詞の一部を入力...";
+                searchInput.placeholder = "歌詞の一部を入力...";
+            } else if(mode === 'artist') {
+                searchInput.placeholder = "歌手名を入力...";
+            } else if(mode === 'song') {
+                searchInput.placeholder = "曲名を入力...";
             } else {
-                btnDoSearch.classList.add('hidden');
-                document.getElementById('search-input').placeholder = "五十音ボタンで入力...";
+                searchInput.placeholder = "アルバム名を入力...";
             }
             
-            keyboardArea.classList.remove('hidden');
             searchResultsContainer.classList.remove('pb-10');
-            searchResultsContainer.classList.add('pb-60');
+            searchResultsContainer.classList.add('pb-20');
 
             resetSearch();
-            document.getElementById('search-status').innerText = '下のボタンから文字を入力してください';
+            document.getElementById('search-status').innerText = '検索ワードを入力して「検索」を押してください';
         }
 
         function openMemo() {
@@ -559,9 +458,9 @@
             document.getElementById('view-search').classList.remove('hidden');
             
             document.getElementById('btn-do-search').classList.add('hidden');
-            document.getElementById('keyboard-area').classList.add('hidden'); // メモはキーボード不要
+            
             const container = document.getElementById('search-results-container');
-            container.classList.remove('pb-60');
+            container.classList.remove('pb-20');
             container.classList.add('pb-10');
             
             document.getElementById('search-input').value = 'メモ帳 (保存した曲)';
@@ -602,16 +501,13 @@
             recognition.onresult = (event) => {
                 hideMessage();
                 const text = event.results[0][0].transcript;
-                State.query = text.replace(/\s+/g, ''); // 空白除去
-                updateInputUI();
+                // 空白を除去せずそのまま検索ワードにする（精度向上のため）
+                State.query = text; 
+                document.getElementById('search-input').value = State.query;
                 
-                if(State.mode === 'lyrics') {
-                    // 歌詞の場合は自動検索しない指示だが、音声入力後は利便性のため検索実行する
-                    resetSearch();
-                    doSearch();
-                } else {
-                    triggerAutoSearch();
-                }
+                // 音声入力後は自動で検索実行
+                resetSearch();
+                doSearch();
             };
             recognition.onerror = (event) => {
                 hideMessage();
@@ -621,21 +517,7 @@
         }
 
         // --- STREAMING_CHUNK: 検索ロジック (API通信とモックデータ生成) ---
-        let searchTimer;
-        function triggerAutoSearch() {
-            if(State.mode === 'lyrics') return; // 歌詞は手動検索
-            if(State.query.length === 0) {
-                resetSearch();
-                document.getElementById('search-status').innerText = '条件を入力してください';
-                return;
-            }
-            clearTimeout(searchTimer);
-            searchTimer = setTimeout(() => {
-                resetSearch();
-                doSearch();
-            }, 600); // 連続入力時の負荷軽減（600ms待機）
-        }
-
+        
         function resetSearch() {
             State.results = [];
             State.offset = 0;
@@ -917,6 +799,9 @@
             document.getElementById('detail-dam-no').innerText = mock.damNo;
             document.getElementById('detail-dam-score').innerText = `${mock.damScore} 点`;
 
+            // Wikipedia情報の非同期取得を開始
+            fetchWikipediaData(item.trackName, item.artistName);
+
             // 試聴オーディオ設定
             if(item.previewUrl) {
                 State.audio.src = item.previewUrl;
@@ -946,7 +831,49 @@
 
             setTimeout(() => {
                 modal.classList.add('hidden');
+                // Wikiエリアを隠してリセット
+                document.getElementById('detail-wiki-container').classList.add('hidden');
+                document.getElementById('detail-wiki-text').innerText = '';
             }, 300); // アニメーション時間
+        }
+
+        // --- Wikipedia API 連携 ---
+        async function fetchWikipediaData(title, artist) {
+            if(!title) return;
+            const wikiContainer = document.getElementById('detail-wiki-container');
+            const wikiText = document.getElementById('detail-wiki-text');
+            
+            wikiText.innerText = "情報を検索中...";
+            wikiContainer.classList.remove('hidden');
+
+            try {
+                // 曲名 + アーティスト名で検索
+                const searchQuery = encodeURIComponent(`${title} ${artist}`);
+                const searchUrl = `https://ja.wikipedia.org/w/api.php?action=query&format=json&origin=*&list=search&srsearch=${searchQuery}&utf8=1`;
+                
+                const searchRes = await fetch(searchUrl);
+                const searchData = await searchRes.json();
+                
+                if (searchData.query.search.length > 0) {
+                    const pageId = searchData.query.search[0].pageid;
+                    // トップヒットのページIDから概要(Extracts)を取得
+                    const detailUrl = `https://ja.wikipedia.org/w/api.php?action=query&format=json&origin=*&prop=extracts&pageids=${pageId}&exintro=1&explaintext=1`;
+                    const detailRes = await fetch(detailUrl);
+                    const detailData = await detailRes.json();
+                    
+                    const extract = detailData.query.pages[pageId].extract;
+                    if (extract && extract.trim().length > 0) {
+                        wikiText.innerText = extract;
+                    } else {
+                        wikiContainer.classList.add('hidden');
+                    }
+                } else {
+                    wikiContainer.classList.add('hidden');
+                }
+            } catch (error) {
+                console.error("Wikipedia API Error:", error);
+                wikiContainer.classList.add('hidden');
+            }
         }
 
         // --- オーディオ試聴 ---
@@ -973,8 +900,8 @@
             if(!State.selectedTrack) return;
             const title = encodeURIComponent(State.selectedTrack.trackName);
             const artist = encodeURIComponent(State.selectedTrack.artistName);
-            // 外部歌詞サイトの検索URL（例としてGoogle検索を利用）
-            const url = `https://www.google.com/search?q=${title}+${artist}+歌詞`;
+            // スマホ対応の歌詞サイト（Uta-Net）の検索結果を開く
+            const url = `https://www.uta-net.com/search/?keyword=${title}+${artist}`;
             window.open(url, '_blank');
         }
 
