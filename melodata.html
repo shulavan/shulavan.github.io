@@ -1,0 +1,1111 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>メロ出〜た - カラオケ曲探しツール</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        :root {
+            --primary: #4F46E5;
+            --secondary: #10B981;
+            --accent: #F59E0B;
+            --bg-color: #F3F4F6;
+            --text-color: #1F2937;
+        }
+        
+        /* スマホの設定に依存しない文字サイズ固定 */
+        html {
+            font-size: 16px !important;
+            -webkit-text-size-adjust: 100% !important;
+            text-size-adjust: 100% !important;
+        }
+        body {
+            font-family: 'Helvetica Neue', Arial, 'Hiragino Kaku Gothic ProN', 'Hiragino Sans', Meiryo, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            overflow: hidden; /* 全体のスクロールを無効化 */
+            touch-action: pan-y;
+        }
+
+        /* カスタムフォントサイズクラス（絶対指定） */
+        .text-fixed-sm { font-size: 14px !important; }
+        .text-fixed-base { font-size: 16px !important; }
+        .text-fixed-lg { font-size: 18px !important; line-height: 1.4; }
+        .text-fixed-xl { font-size: 22px !important; font-weight: bold; }
+        .text-fixed-2xl { font-size: 28px !important; font-weight: bold; }
+
+        /* スクロールバー非表示 */
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+        /* マテリアル風ボタン */
+        .btn-material {
+            transition: background-color 0.2s, box-shadow 0.2s, transform 0.1s;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+            min-height: 54px; /* タップしやすい高さ */
+        }
+        .btn-material:active {
+            box-shadow: 0 4px 8px rgba(0,0,0,0.3);
+            transform: scale(0.98);
+        }
+
+        /* レコードジャケットの枠色 */
+        .jacket-gold {
+            border: 4px solid #FFD700;
+            box-shadow: 0 0 12px rgba(255, 215, 0, 0.8);
+        }
+        .jacket-silver {
+            border: 4px solid #C0C0C0;
+            box-shadow: 0 0 12px rgba(192, 192, 192, 0.8);
+        }
+        .jacket-bronze {
+            border: 4px solid #CD7F32;
+            box-shadow: 0 0 8px rgba(205, 127, 50, 0.5);
+        }
+
+        /* モーダルアニメーション */
+        .modal-enter { animation: slideUp 0.3s ease-out forwards; }
+        .modal-leave { animation: slideDown 0.3s ease-in forwards; }
+        @keyframes slideUp {
+            from { transform: translateY(100%); opacity: 0; }
+            to { transform: translateY(0); opacity: 1; }
+        }
+        @keyframes slideDown {
+            from { transform: translateY(0); opacity: 1; }
+            to { transform: translateY(100%); opacity: 0; }
+        }
+    </style>
+</head>
+<body class="h-screen w-screen flex flex-col">
+
+    <div id="msg-box" class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 hidden">
+        <div class="bg-white rounded-xl shadow-2xl p-6 w-11/12 max-w-sm text-center">
+            <p id="msg-text" class="text-fixed-lg mb-6"></p>
+            <button onclick="hideMessage()" class="btn-material w-full bg-indigo-600 text-white rounded-full py-3 text-fixed-lg">確認</button>
+        </div>
+    </div>
+
+    <div id="view-top" class="flex-1 flex flex-col overflow-y-auto w-full h-full absolute inset-0 z-10 bg-gray-50">
+        <div class="bg-indigo-600 text-white p-4 text-center shadow-md rounded-b-2xl">
+            <h1 class="text-fixed-2xl mb-2"><i class="fas fa-microphone-alt mr-2"></i>メロ出〜た</h1>
+            <p class="text-fixed-sm opacity-90 leading-relaxed">
+                カラオケの曲を探そうにもタイトルも分からず、アーティスト名も分からず、聴きたくてもすぐに出てこずといった時に。
+            </p>
+        </div>
+        
+        <div class="flex-1 p-4 space-y-4 flex flex-col justify-center max-w-md mx-auto w-full">
+            <button onclick="openSearch('artist')" class="btn-material w-full bg-white rounded-xl p-4 flex items-center border-l-8 border-blue-500">
+                <div class="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center text-blue-500 mr-4">
+                    <i class="fas fa-user text-xl"></i>
+                </div>
+                <div class="text-left flex-1">
+                    <div class="text-fixed-xl">歌手名</div>
+                    <div class="text-fixed-sm text-gray-500" id="hist-artist">歌手名から探す</div>
+                </div>
+                <i class="fas fa-chevron-right text-gray-300"></i>
+            </button>
+
+            <button onclick="openSearch('song')" class="btn-material w-full bg-white rounded-xl p-4 flex items-center border-l-8 border-green-500">
+                <div class="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center text-green-500 mr-4">
+                    <i class="fas fa-music text-xl"></i>
+                </div>
+                <div class="text-left flex-1">
+                    <div class="text-fixed-xl">曲名</div>
+                    <div class="text-fixed-sm text-gray-500" id="hist-song">曲名から探す</div>
+                </div>
+                <i class="fas fa-chevron-right text-gray-300"></i>
+            </button>
+
+            <button onclick="openSearch('album')" class="btn-material w-full bg-white rounded-xl p-4 flex items-center border-l-8 border-yellow-500">
+                <div class="w-12 h-12 bg-yellow-100 rounded-full flex items-center justify-center text-yellow-600 mr-4">
+                    <i class="fas fa-compact-disc text-xl"></i>
+                </div>
+                <div class="text-left flex-1">
+                    <div class="text-fixed-xl">アルバム名</div>
+                    <div class="text-fixed-sm text-gray-500" id="hist-album">アルバムから探す</div>
+                </div>
+                <i class="fas fa-chevron-right text-gray-300"></i>
+            </button>
+
+            <button onclick="openSearch('lyrics')" class="btn-material w-full bg-white rounded-xl p-4 flex items-center border-l-8 border-pink-500">
+                <div class="w-12 h-12 bg-pink-100 rounded-full flex items-center justify-center text-pink-500 mr-4">
+                    <i class="fas fa-book-open text-xl"></i>
+                </div>
+                <div class="text-left flex-1">
+                    <div class="text-fixed-xl">歌詞ワード</div>
+                    <div class="text-fixed-sm text-gray-500" id="hist-lyrics">歌詞の一部から探す</div>
+                </div>
+                <i class="fas fa-chevron-right text-gray-300"></i>
+            </button>
+
+            <button onclick="openMemo()" class="btn-material w-full bg-gray-800 text-white rounded-xl p-4 flex items-center mt-6">
+                <div class="w-12 h-12 bg-gray-700 rounded-full flex items-center justify-center mr-4">
+                    <i class="fas fa-clipboard-list text-xl"></i>
+                </div>
+                <div class="text-left flex-1">
+                    <div class="text-fixed-xl">メモ帳</div>
+                    <div class="text-fixed-sm text-gray-300">保存した曲を見る</div>
+                </div>
+                <i class="fas fa-chevron-right text-gray-500"></i>
+            </button>
+        </div>
+    </div>
+
+    <div id="view-search" class="flex-1 flex flex-col w-full h-full absolute inset-0 z-20 bg-white hidden">
+        <!-- ヘッダー部 -->
+        <div class="bg-indigo-600 p-2 shadow-md z-30">
+            <div class="flex items-center gap-2 mb-2">
+                <div class="bg-white rounded-lg flex-1 flex items-center px-2 py-1 relative">
+                    <i class="fas fa-search text-gray-400 mr-2"></i>
+                    <input type="text" id="search-input" class="w-full text-fixed-lg p-2 outline-none bg-transparent" placeholder="入力してください" readonly>
+                    <!-- 歌詞検索時のみ表示されるボタン -->
+                    <button id="btn-do-search" class="hidden bg-indigo-500 text-white px-4 py-2 rounded text-fixed-base ml-2 whitespace-nowrap active:bg-indigo-700">検索</button>
+                    <!-- 音声入力 -->
+                    <button onclick="startVoiceInput()" class="w-12 h-12 flex items-center justify-center text-indigo-600 bg-indigo-50 rounded-full ml-1 active:bg-indigo-200">
+                        <i class="fas fa-microphone text-xl"></i>
+                    </button>
+                </div>
+            </div>
+            <div class="flex items-center justify-between gap-2">
+                <div class="flex-1 bg-white rounded flex items-center px-2">
+                    <i class="fas fa-sort text-gray-500 mr-1"></i>
+                    <select id="sort-select" class="w-full py-2 text-fixed-base bg-transparent outline-none">
+                        <option value="popular">ヒット順</option>
+                        <option value="gojuon">五十音順</option>
+                        <option value="date">発売日順</option>
+                    </select>
+                </div>
+                <button onclick="openOptions()" class="bg-indigo-800 text-white px-4 py-2 rounded flex items-center text-fixed-base active:bg-indigo-900">
+                    <i class="fas fa-sliders-h mr-1"></i> オプション
+                </button>
+            </div>
+        </div>
+
+        <!-- 中部：検索結果リスト -->
+        <div id="search-results-container" class="flex-1 overflow-y-auto bg-gray-100 p-2 pb-60 relative no-scrollbar">
+            <div id="search-status" class="text-center py-4 text-fixed-base text-gray-500">条件を入力してください</div>
+            <div id="search-results" class="space-y-3">
+                <!-- 結果アイテムがここに入る -->
+            </div>
+            <div id="loading-spinner" class="hidden text-center py-6">
+                <i class="fas fa-spinner fa-spin text-3xl text-indigo-500"></i>
+            </div>
+        </div>
+
+        <!-- フッター：五十音キーボード＆戻る -->
+        <div id="keyboard-area" class="bg-gray-200 border-t shadow-[0_-2px_10px_rgba(0,0,0,0.1)] absolute bottom-0 left-0 w-full z-30">
+            <!-- 行タブ -->
+            <div id="kana-rows" class="flex overflow-x-auto p-1 bg-gray-300 gap-1 no-scrollbar">
+                <!-- JSで生成 -->
+            </div>
+            <!-- 文字ボタン -->
+            <div class="flex justify-between p-2">
+                <div id="kana-chars" class="flex gap-1 flex-1 justify-around">
+                    <!-- JSで生成 -->
+                </div>
+                <div class="flex flex-col gap-1 ml-2 border-l pl-2 border-gray-300 justify-center">
+                    <div class="flex gap-1">
+                        <button onclick="addKanaMod('濁点')" class="w-12 h-10 bg-white rounded shadow text-fixed-base font-bold active:bg-gray-100">゛</button>
+                        <button onclick="addKanaMod('半濁点')" class="w-12 h-10 bg-white rounded shadow text-fixed-base font-bold active:bg-gray-100">゜</button>
+                    </div>
+                    <div class="flex gap-1">
+                        <button onclick="addKanaMod('促音')" class="w-12 h-10 bg-white rounded shadow text-fixed-base font-bold active:bg-gray-100">小</button>
+                        <button onclick="deleteChar()" class="w-12 h-10 bg-gray-400 text-white rounded shadow text-fixed-base font-bold active:bg-gray-600"><i class="fas fa-backspace"></i></button>
+                    </div>
+                </div>
+            </div>
+            <!-- 戻るボタン -->
+            <div class="absolute -top-14 right-2">
+                <button onclick="closeSearch()" class="btn-material w-14 h-14 bg-red-500 text-white rounded-full flex items-center justify-center shadow-lg active:bg-red-600 border-2 border-white">
+                    <i class="fas fa-arrow-left text-xl"></i>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <div id="modal-options" class="fixed inset-0 z-40 bg-black bg-opacity-50 hidden flex flex-col justify-end">
+        <div class="bg-white rounded-t-2xl p-4 max-h-[80vh] overflow-y-auto w-full modal-enter">
+            <div class="flex justify-between items-center mb-4 border-b pb-2">
+                <h2 class="text-fixed-xl font-bold">検索オプション</h2>
+                <button onclick="closeOptions()" class="w-10 h-10 bg-gray-200 rounded-full text-gray-600"><i class="fas fa-times text-xl"></i></button>
+            </div>
+            
+            <div class="space-y-6 pb-20">
+                <!-- 年代 -->
+                <div>
+                    <label class="block text-fixed-lg font-bold mb-2 text-indigo-700">年代指定</label>
+                    <select id="opt-era" class="w-full p-3 border-2 border-gray-300 rounded-xl text-fixed-lg bg-gray-50">
+                        <option value="all">すべて</option>
+                        <option value="2020">2020年代</option>
+                        <option value="2010">2010年代</option>
+                        <option value="2000">2000年代</option>
+                        <option value="1990">1990年代</option>
+                        <option value="1980">1980年代</option>
+                        <option value="1970">1970年代</option>
+                        <option value="1960">1960年代</option>
+                        <option value="1950">1950年代</option>
+                        <option value="1940">1940年代以前</option>
+                    </select>
+                </div>
+                <!-- ジャンル -->
+                <div>
+                    <label class="block text-fixed-lg font-bold mb-2 text-indigo-700">ジャンル</label>
+                    <select id="opt-genre" class="w-full p-3 border-2 border-gray-300 rounded-xl text-fixed-lg bg-gray-50">
+                        <option value="all">すべて</option>
+                        <option value="jpop">J-Pop</option>
+                        <option value="enka">演歌</option>
+                        <option value="kayou">歌謡曲</option>
+                        <option value="anime">アニメ</option>
+                        <option value="rock">ロック</option>
+                    </select>
+                </div>
+                <!-- ヒット -->
+                <div>
+                    <label class="block text-fixed-lg font-bold mb-2 text-indigo-700">ヒット条件</label>
+                    <div class="flex flex-col space-y-3 bg-gray-50 p-3 rounded-xl border border-gray-200">
+                        <label class="flex items-center text-fixed-lg p-2 bg-white rounded shadow-sm">
+                            <input type="radio" name="opt-hit" value="unknown" class="w-6 h-6 mr-3 text-indigo-600" checked>
+                            指定しない (不明)
+                        </label>
+                        <label class="flex items-center text-fixed-lg p-2 bg-white rounded shadow-sm border-l-4 border-gray-400">
+                            <input type="radio" name="opt-hit" value="million" class="w-6 h-6 mr-3 text-indigo-600">
+                            ミリオンヒット (銀枠)
+                        </label>
+                        <label class="flex items-center text-fixed-lg p-2 bg-white rounded shadow-sm border-l-4 border-yellow-400">
+                            <input type="radio" name="opt-hit" value="award" class="w-6 h-6 mr-3 text-indigo-600">
+                            レコード大賞受賞 (金枠)
+                        </label>
+                    </div>
+                </div>
+                <!-- 提案モック：テンポ -->
+                <div>
+                    <label class="block text-fixed-lg font-bold mb-2 text-indigo-700">テンポ (BPM) <span class="text-fixed-sm text-gray-500 font-normal">※追加提案</span></label>
+                    <select id="opt-tempo" class="w-full p-3 border-2 border-gray-300 rounded-xl text-fixed-lg bg-gray-50">
+                        <option value="all">すべて</option>
+                        <option value="slow">ゆっくり (バラードなど)</option>
+                        <option value="normal">普通</option>
+                        <option value="fast">アップテンポ (盛り上がる)</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="fixed bottom-0 left-0 w-full p-4 bg-white border-t">
+                <button onclick="applyOptions()" class="btn-material w-full bg-indigo-600 text-white rounded-full py-4 text-fixed-xl font-bold">
+                    条件を適用して検索
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <div id="modal-detail" class="fixed inset-0 z-50 bg-black bg-opacity-80 hidden flex flex-col items-center justify-center p-4">
+        <div class="bg-white rounded-2xl w-full max-w-lg h-[90vh] flex flex-col overflow-hidden modal-enter relative">
+            
+            <!-- ヘッダーアクション群 -->
+            <div class="bg-gray-100 p-2 flex flex-wrap gap-2 justify-center border-b border-gray-300 shadow-sm z-10">
+                <div class="w-full flex justify-between mb-1">
+                    <span class="text-fixed-base font-bold text-gray-600 pl-2 pt-1">曲の詳細</span>
+                    <button onclick="closeDetail()" class="w-10 h-10 bg-red-100 text-red-600 rounded-full flex items-center justify-center active:bg-red-200">
+                        <i class="fas fa-times text-xl"></i>
+                    </button>
+                </div>
+                <button onclick="playPreview()" class="flex-1 bg-green-500 text-white py-2 px-1 rounded shadow text-fixed-sm font-bold flex flex-col items-center">
+                    <i class="fas fa-play-circle text-xl mb-1"></i>30秒試聴
+                </button>
+                <button onclick="openLyricsSite()" class="flex-1 bg-pink-500 text-white py-2 px-1 rounded shadow text-fixed-sm font-bold flex flex-col items-center">
+                    <i class="fas fa-music text-xl mb-1"></i>歌詞
+                </button>
+                <button onclick="openDownload()" class="flex-1 bg-blue-500 text-white py-2 px-1 rounded shadow text-fixed-sm font-bold flex flex-col items-center">
+                    <i class="fas fa-download text-xl mb-1"></i>DL購入
+                </button>
+                
+                <div class="w-full flex gap-2 mt-1">
+                    <button id="btn-save-memo" onclick="toggleMemo()" class="flex-1 bg-orange-400 text-white py-2 rounded shadow text-fixed-base font-bold flex items-center justify-center">
+                        <i class="fas fa-bookmark mr-2"></i>メモ帳保存
+                    </button>
+                    <button onclick="shareTrack()" class="flex-1 bg-teal-500 text-white py-2 rounded shadow text-fixed-base font-bold flex items-center justify-center">
+                        <i class="fas fa-share-alt mr-2"></i>友達に共有
+                    </button>
+                </div>
+            </div>
+
+            <!-- 詳細情報スクロール領域 -->
+            <div class="flex-1 overflow-y-auto p-4 bg-gray-50 no-scrollbar">
+                <div class="flex flex-col items-center mb-6">
+                    <div id="detail-jacket-wrapper" class="w-48 h-48 rounded-xl mb-4 overflow-hidden shadow-2xl relative bg-black">
+                        <img id="detail-jacket" src="" class="w-full h-full object-cover">
+                        <!-- 試聴用オーディオ要素 -->
+                        <audio id="audio-preview" class="hidden"></audio>
+                        <div id="play-indicator" class="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center hidden">
+                            <i class="fas fa-pause-circle text-white text-5xl"></i>
+                        </div>
+                    </div>
+                    <div class="text-center w-full">
+                        <h2 id="detail-title" class="text-fixed-2xl font-bold mb-2 leading-tight"></h2>
+                        <h3 id="detail-artist" class="text-fixed-xl text-indigo-700 mb-2"></h3>
+                        <p id="detail-album" class="text-fixed-base text-gray-500 mb-4"></p>
+                    </div>
+                </div>
+
+                <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-4 space-y-3">
+                    <div class="flex border-b pb-2">
+                        <span class="w-1/3 text-gray-500 text-fixed-sm">レコード会社</span>
+                        <span id="detail-label" class="w-2/3 text-fixed-base font-bold text-right"></span>
+                    </div>
+                    <div class="flex border-b pb-2">
+                        <span class="w-1/3 text-gray-500 text-fixed-sm">発売年</span>
+                        <span id="detail-year" class="w-2/3 text-fixed-base font-bold text-right"></span>
+                    </div>
+                    <div class="flex border-b pb-2">
+                        <span class="w-1/3 text-gray-500 text-fixed-sm">売上(推定)</span>
+                        <span id="detail-sales" class="w-2/3 text-fixed-base font-bold text-right text-red-600"></span>
+                    </div>
+                    <div class="flex border-b pb-2">
+                        <span class="w-1/3 text-gray-500 text-fixed-sm">作詞</span>
+                        <span id="detail-lyricist" class="w-2/3 text-fixed-base font-bold text-right"></span>
+                    </div>
+                    <div class="flex border-b pb-2">
+                        <span class="w-1/3 text-gray-500 text-fixed-sm">作曲</span>
+                        <span id="detail-composer" class="w-2/3 text-fixed-base font-bold text-right"></span>
+                    </div>
+                    <div class="flex border-b pb-2 bg-indigo-50 -mx-4 px-4 py-2">
+                        <span class="w-1/3 text-indigo-700 text-fixed-sm font-bold">DAM選曲番号</span>
+                        <span id="detail-dam-no" class="w-2/3 text-fixed-xl font-bold text-right tracking-widest text-indigo-900"></span>
+                    </div>
+                    <div class="flex pt-1 bg-indigo-50 -mx-4 px-4 pb-2">
+                        <span class="w-1/2 text-indigo-700 text-fixed-sm font-bold">DAM全国平均点</span>
+                        <span id="detail-dam-score" class="w-1/2 text-fixed-xl font-bold text-right text-indigo-900"></span>
+                    </div>
+                    <div class="text-fixed-sm text-gray-400 mt-4 text-center">
+                        ※売上、作詞作曲、DAM番号等は独自の推定モックデータを含みます。
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // --- 定数・状態管理 ---
+        const State = {
+            view: 'top', // top, search
+            mode: '', // artist, song, album, lyrics, memo
+            query: '',
+            results: [],
+            offset: 0,
+            limit: 50,
+            isLoading: false,
+            hasMore: true,
+            selectedTrack: null,
+            favorites: JSON.parse(localStorage.getItem('melodata_memo') || '[]'),
+            options: {
+                sort: 'popular', era: 'all', genre: 'all', hit: 'unknown', tempo: 'all'
+            },
+            audio: document.getElementById('audio-preview')
+        };
+
+        const KanaTable = [
+            { row: 'あ', chars: ['あ','い','う','え','お'] },
+            { row: 'か', chars: ['か','き','く','け','こ'] },
+            { row: 'さ', chars: ['さ','し','す','せ','そ'] },
+            { row: 'た', chars: ['た','ち','つ','て','と'] },
+            { row: 'な', chars: ['な','に','ぬ','ね','の'] },
+            { row: 'は', chars: ['は','ひ','ふ','へ','ほ'] },
+            { row: 'ま', chars: ['ま','み','む','め','も'] },
+            { row: 'や', chars: ['や','ゆ','よ'] },
+            { row: 'ら', chars: ['ら','り','る','れ','ろ'] },
+            { row: 'わ', chars: ['わ','を','ん'] },
+            { row: 'ABC', chars: ['A','B','C','D','E'] } // 英語入力対応として少し用意（本来はキーボード切替だが今回は簡易化）
+        ];
+
+        // 濁点変換マップ
+        const DakutenMap = { 'か':'が','き':'ぎ','く':'ぐ','け':'げ','こ':'ご','さ':'ざ','し':'じ','す':'ず','せ':'ぜ','そ':'ぞ','た':'だ','ち':'ぢ','つ':'づ','て':'で','と':'ど','は':'ば','ひ':'び','ふ':'ぶ','へ':'べ','ほ':'ぼ' };
+        const HandakutenMap = { 'は':'ぱ','ひ':'ぴ','ふ':'ぷ','へ':'ぺ','ほ':'ぽ' };
+        const SokuonMap = { 'あ':'ぁ','い':'ぃ','う':'ぅ','え':'ぇ','お':'ぉ','や':'ゃ','ゆ':'ゅ','よ':'ょ','つ':'っ','わ':'ゎ' };
+
+        // --- 初期化処理 ---
+        window.onload = () => {
+            initKanaKeyboard();
+            checkUrlParams();
+            setupScrollListener();
+            updateHistories();
+            
+            // 歌詞検索ボタンのイベント
+            document.getElementById('btn-do-search').addEventListener('click', () => {
+                resetSearch();
+                doSearch();
+            });
+            document.getElementById('sort-select').addEventListener('change', (e) => {
+                State.options.sort = e.target.value;
+                sortAndRenderResults();
+            });
+        };
+
+        function showMessage(text) {
+            document.getElementById('msg-text').innerHTML = text;
+            document.getElementById('msg-box').classList.remove('hidden');
+        }
+        function hideMessage() {
+            document.getElementById('msg-box').classList.add('hidden');
+        }
+
+        // --- 五十音キーボード生成 ---
+        function initKanaKeyboard() {
+            const rowContainer = document.getElementById('kana-rows');
+            KanaTable.forEach((k, index) => {
+                const btn = document.createElement('button');
+                btn.className = `min-w-[48px] h-12 bg-white rounded-t-lg shadow-sm border border-gray-300 text-fixed-lg font-bold text-gray-700 active:bg-blue-100 ${index===0?'bg-blue-100 border-blue-400':''}`;
+                btn.innerText = k.row;
+                btn.onclick = () => selectKanaRow(index, btn);
+                rowContainer.appendChild(btn);
+            });
+            selectKanaRow(0, rowContainer.children[0]); // 初期は「あ」行
+        }
+
+        let currentChars = [];
+        function selectKanaRow(index, activeBtn) {
+            const rows = document.getElementById('kana-rows').children;
+            for(let r of rows) { r.classList.remove('bg-blue-100', 'border-blue-400'); }
+            activeBtn.classList.add('bg-blue-100', 'border-blue-400');
+
+            const charContainer = document.getElementById('kana-chars');
+            charContainer.innerHTML = '';
+            currentChars = KanaTable[index].chars;
+            
+            currentChars.forEach(char => {
+                const btn = document.createElement('button');
+                btn.className = 'flex-1 h-16 bg-white rounded-xl shadow-[0_2px_5px_rgba(0,0,0,0.2)] text-fixed-2xl font-bold text-gray-800 active:bg-gray-200 active:scale-95 transition-transform';
+                btn.innerText = char;
+                btn.onclick = () => inputChar(char);
+                charContainer.appendChild(btn);
+            });
+            // 隙間埋め
+            for(let i = currentChars.length; i < 5; i++) {
+                const dummy = document.createElement('div');
+                dummy.className = 'flex-1';
+                charContainer.appendChild(dummy);
+            }
+        }
+
+        // --- 入力制御 ---
+        function inputChar(char) {
+            State.query += char;
+            updateInputUI();
+            triggerAutoSearch();
+        }
+
+        function deleteChar() {
+            if(State.query.length > 0) {
+                State.query = State.query.slice(0, -1);
+                updateInputUI();
+                triggerAutoSearch();
+            }
+        }
+
+        function addKanaMod(type) {
+            if(State.query.length === 0) return;
+            let lastChar = State.query.slice(-1);
+            let newChar = lastChar;
+            if(type === '濁点' && DakutenMap[lastChar]) newChar = DakutenMap[lastChar];
+            if(type === '半濁点' && HandakutenMap[lastChar]) newChar = HandakutenMap[lastChar];
+            if(type === '促音' && SokuonMap[lastChar]) newChar = SokuonMap[lastChar];
+            
+            if(newChar !== lastChar) {
+                State.query = State.query.slice(0, -1) + newChar;
+                updateInputUI();
+                triggerAutoSearch();
+            }
+        }
+
+        function updateInputUI() {
+            const input = document.getElementById('search-input');
+            input.value = State.query;
+            input.scrollLeft = input.scrollWidth;
+        }
+
+        // --- 画面切り替え ---
+        function openSearch(mode) {
+            State.mode = mode;
+            State.query = '';
+            updateInputUI();
+            
+            document.getElementById('view-top').classList.add('hidden');
+            document.getElementById('view-search').classList.remove('hidden');
+            
+            const btnDoSearch = document.getElementById('btn-do-search');
+            const keyboardArea = document.getElementById('keyboard-area');
+            const searchResultsContainer = document.getElementById('search-results-container');
+            
+            // モード別のUI調整
+            if(mode === 'lyrics') {
+                btnDoSearch.classList.remove('hidden');
+                document.getElementById('search-input').placeholder = "歌詞の一部を入力...";
+            } else {
+                btnDoSearch.classList.add('hidden');
+                document.getElementById('search-input').placeholder = "五十音ボタンで入力...";
+            }
+            
+            keyboardArea.classList.remove('hidden');
+            searchResultsContainer.classList.remove('pb-10');
+            searchResultsContainer.classList.add('pb-60');
+
+            resetSearch();
+            document.getElementById('search-status').innerText = '下のボタンから文字を入力してください';
+        }
+
+        function openMemo() {
+            State.mode = 'memo';
+            document.getElementById('view-top').classList.add('hidden');
+            document.getElementById('view-search').classList.remove('hidden');
+            
+            document.getElementById('btn-do-search').classList.add('hidden');
+            document.getElementById('keyboard-area').classList.add('hidden'); // メモはキーボード不要
+            const container = document.getElementById('search-results-container');
+            container.classList.remove('pb-60');
+            container.classList.add('pb-10');
+            
+            document.getElementById('search-input').value = 'メモ帳 (保存した曲)';
+            
+            State.results = [...State.favorites];
+            State.hasMore = false;
+            renderResults();
+        }
+
+        function closeSearch() {
+            document.getElementById('view-search').classList.add('hidden');
+            document.getElementById('view-top').classList.remove('hidden');
+            State.audio.pause();
+            updateHistories();
+        }
+
+        function updateHistories() {
+            if(State.query && State.mode) {
+                const el = document.getElementById(`hist-${State.mode}`);
+                if(el) el.innerText = `前回: ${State.query}`;
+            }
+        }
+
+        // --- 音声入力 ---
+        function startVoiceInput() {
+            const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+            if(!SpeechRecognition) {
+                showMessage("お使いのブラウザは音声入力に対応していません。");
+                return;
+            }
+            const recognition = new SpeechRecognition();
+            recognition.lang = 'ja-JP';
+            recognition.interimResults = false;
+            recognition.maxAlternatives = 1;
+
+            showMessage("マイクに向かって曲名や歌手名を話してください...");
+            
+            recognition.onresult = (event) => {
+                hideMessage();
+                const text = event.results[0][0].transcript;
+                State.query = text.replace(/\s+/g, ''); // 空白除去
+                updateInputUI();
+                
+                if(State.mode === 'lyrics') {
+                    // 歌詞の場合は自動検索しない指示だが、音声入力後は利便性のため検索実行する
+                    resetSearch();
+                    doSearch();
+                } else {
+                    triggerAutoSearch();
+                }
+            };
+            recognition.onerror = (event) => {
+                hideMessage();
+                showMessage("音声が認識できませんでした。もう一度お試しください。");
+            };
+            recognition.start();
+        }
+
+        // --- STREAMING_CHUNK: 検索ロジック (API通信とモックデータ生成) ---
+        let searchTimer;
+        function triggerAutoSearch() {
+            if(State.mode === 'lyrics') return; // 歌詞は手動検索
+            if(State.query.length === 0) {
+                resetSearch();
+                document.getElementById('search-status').innerText = '条件を入力してください';
+                return;
+            }
+            clearTimeout(searchTimer);
+            searchTimer = setTimeout(() => {
+                resetSearch();
+                doSearch();
+            }, 600); // 連続入力時の負荷軽減（600ms待機）
+        }
+
+        function resetSearch() {
+            State.results = [];
+            State.offset = 0;
+            State.hasMore = true;
+            document.getElementById('search-results').innerHTML = '';
+        }
+
+        // ダミーデータ生成器 (trackIdに基づく決定論的乱数)
+        function generateMockData(trackId) {
+            const seed = trackId || Math.random() * 10000;
+            const pseudoRandom = Math.abs(Math.sin(seed)) * 10000;
+            const pseudoRandom2 = Math.abs(Math.cos(seed)) * 100;
+            
+            let sales = Math.floor(pseudoRandom % 200); // 0〜200万枚
+            if(sales === 0) sales = 1;
+            
+            let jacketClass = 'jacket-bronze';
+            let isMillion = false;
+            let isAward = false;
+            
+            if(sales >= 100 || pseudoRandom % 10 > 8) {
+                jacketClass = 'jacket-silver';
+                isMillion = true;
+                sales = 100 + Math.floor(pseudoRandom % 150);
+            }
+            if(pseudoRandom % 20 > 18) {
+                jacketClass = 'jacket-gold';
+                isAward = true;
+            }
+
+            const composers = ['山田太郎', '佐藤花子', '鈴木一郎', '田中角栄', '小室哲哉風', 'つんく風', '秋元康風', '不詳'];
+            const labels = ['ポニーキャニオン', 'ソニー・ミュージック', 'エイベックス', 'ビクター', 'キングレコード', 'ユニバーサル', '日本コロムビア'];
+            const dummyLyrics = ['あの日見た空の青さを...', '愛してる、ただそれだけを...', '涙枯れるまで泣いた夜...', 'さくら舞い散る道を...', 'ありがとう、君に伝えたい...', 'ラララ、歌おう明日のために...'];
+            
+            const composerIdx = Math.floor(pseudoRandom) % composers.length;
+            const labelIdx = Math.floor(pseudoRandom2) % labels.length;
+            const lyricIdx = Math.floor(pseudoRandom + pseudoRandom2) % dummyLyrics.length;
+
+            return {
+                sales: sales,
+                isMillion: isMillion,
+                isAward: isAward,
+                jacketClass: jacketClass,
+                composer: composers[composerIdx],
+                lyricist: composers[(composerIdx + 1) % composers.length],
+                label: labels[labelIdx],
+                lyricPreview: dummyLyrics[lyricIdx],
+                damNo: `${Math.floor(1000 + (pseudoRandom%9000))}-${Math.floor(10 + (pseudoRandom2%90))}`,
+                damScore: (85 + (pseudoRandom % 14) + (pseudoRandom2 % 100)/100).toFixed(3)
+            };
+        }
+
+        async function doSearch() {
+            if(State.isLoading || !State.hasMore || State.query === '') return;
+            State.isLoading = true;
+            document.getElementById('loading-spinner').classList.remove('hidden');
+            document.getElementById('search-status').innerText = '';
+
+            let term = State.query;
+            let entity = 'song';
+            let attribute = '';
+
+            if(State.mode === 'artist') {
+                attribute = 'artistTerm';
+            } else if(State.mode === 'album') {
+                entity = 'album';
+            } else if(State.mode === 'lyrics') {
+                // iTunes APIは歌詞検索不可。今回は曲名検索で代用し、モックでそれっぽく見せる
+                attribute = 'songTerm';
+            } else {
+                attribute = 'songTerm';
+            }
+
+            const url = `https://itunes.apple.com/search?term=${encodeURIComponent(term)}&country=jp&media=music&entity=${entity}${attribute ? '&attribute='+attribute : ''}&limit=${State.limit}&offset=${State.offset}`;
+
+            try {
+                const response = await fetch(url);
+                const data = await response.json();
+
+                if(data.results.length === 0) {
+                    if(State.results.length === 0) {
+                        document.getElementById('search-status').innerText = '見つかりませんでした。別のキーワードをお試しください。';
+                    }
+                    State.hasMore = false;
+                } else {
+                    // データ加工
+                    const newResults = data.results.map(item => {
+                        const mock = generateMockData(item.trackId || item.collectionId);
+                        return {
+                            ...item,
+                            mock: mock
+                        };
+                    });
+                    
+                    // オプションフィルタリング
+                    let filtered = applyFilters(newResults);
+                    
+                    State.results = [...State.results, ...filtered];
+                    State.offset += State.limit;
+                    
+                    if(data.results.length < State.limit) {
+                        State.hasMore = false;
+                    }
+                    
+                    sortAndRenderResults();
+                }
+            } catch(e) {
+                console.error(e);
+                showMessage("通信エラーが発生しました。");
+            } finally {
+                State.isLoading = false;
+                document.getElementById('loading-spinner').classList.add('hidden');
+            }
+        }
+
+        function applyFilters(results) {
+            return results.filter(item => {
+                const opt = State.options;
+                // 年代
+                if(opt.era !== 'all' && item.releaseDate) {
+                    const year = parseInt(item.releaseDate.substring(0,4));
+                    const eraStart = parseInt(opt.era);
+                    if(year < eraStart || year >= eraStart + 10) return false;
+                }
+                // ジャンル (iTunesのprimaryGenreNameでざっくり判定)
+                if(opt.genre !== 'all' && item.primaryGenreName) {
+                    const g = item.primaryGenreName.toLowerCase();
+                    if(opt.genre === 'jpop' && !g.includes('j-pop')) return false;
+                    if(opt.genre === 'enka' && !g.includes('演歌') && !g.includes('歌謡')) return false;
+                    if(opt.genre === 'anime' && !g.includes('アニメ')) return false;
+                    if(opt.genre === 'rock' && !g.includes('ロック') && !g.includes('rock')) return false;
+                }
+                // ヒット
+                if(opt.hit === 'million' && !item.mock.isMillion) return false;
+                if(opt.hit === 'award' && !item.mock.isAward) return false;
+                
+                return true;
+            });
+        }
+
+        function sortAndRenderResults() {
+            const opt = State.options.sort;
+            if(opt === 'gojuon') {
+                // カナ取得は難しいので、タイトル文字列でソート
+                State.results.sort((a,b) => (a.trackName||a.collectionName).localeCompare(b.trackName||b.collectionName, 'ja'));
+            } else if(opt === 'date') {
+                State.results.sort((a,b) => new Date(b.releaseDate) - new Date(a.releaseDate));
+            } else {
+                // popular (デフォルト順。今回はAPIの返却順を維持するためソートしないが、モックの売上順にしてもよい)
+                State.results.sort((a,b) => b.mock.sales - a.mock.sales);
+            }
+            renderResults();
+        }
+
+        // --- STREAMING_CHUNK: UI描画処理 (リスト表示) ---
+        function renderResults() {
+            const container = document.getElementById('search-results');
+            container.innerHTML = '';
+            
+            if(State.results.length === 0 && !State.isLoading) {
+                 document.getElementById('search-status').innerText = '条件に合う曲がありません。オプションを変更してみてください。';
+                 return;
+            } else {
+                 document.getElementById('search-status').innerText = '';
+            }
+
+            State.results.forEach(item => {
+                const isAlbum = State.mode === 'album' && item.wrapperType === 'collection';
+                const title = item.trackName || item.collectionName || '不明なタイトル';
+                const artist = item.artistName || '不明なアーティスト';
+                const image = item.artworkUrl100 ? item.artworkUrl100.replace('100x100bb', '200x200bb') : 'https://placehold.co/200x200/cccccc/ffffff?text=No+Image';
+                const year = item.releaseDate ? item.releaseDate.substring(0,4) : '年不明';
+                const mock = item.mock;
+
+                const div = document.createElement('div');
+                div.className = 'bg-white rounded-xl shadow p-2 flex gap-3 items-center active:bg-gray-50';
+                
+                // クリックイベント
+                if(isAlbum) {
+                    div.onclick = () => fetchAlbumTracks(item.collectionId, item.collectionName);
+                } else {
+                    div.onclick = () => openDetail(item);
+                }
+
+                // アイコン追加(アルバム判別)
+                const albumIcon = isAlbum ? `<div class="absolute top-1 right-1 bg-yellow-500 text-white text-xs px-1 rounded">アルバム</div>` : '';
+
+                div.innerHTML = `
+                    <div class="relative w-20 h-20 flex-shrink-0 rounded-lg overflow-hidden ${mock.jacketClass}">
+                        <img src="${image}" class="w-full h-full object-cover" onerror="this.src='https://placehold.co/200x200/cccccc/ffffff?text=No+Image'">
+                        ${albumIcon}
+                    </div>
+                    <div class="flex-1 min-w-0 flex flex-col justify-between py-1">
+                        <div class="flex justify-between items-baseline mb-1">
+                            <h4 class="text-fixed-lg font-bold truncate flex-1 pr-2">${title}</h4>
+                            <span class="text-fixed-sm text-gray-500 whitespace-nowrap">(${year} / ${mock.sales}万枚)</span>
+                        </div>
+                        <div class="flex justify-between items-baseline mb-1">
+                            <p class="text-fixed-base text-indigo-700 truncate flex-1 pr-2">${artist}</p>
+                            <span class="text-fixed-sm text-gray-400 whitespace-nowrap">(${mock.label})</span>
+                        </div>
+                        <p class="text-fixed-sm text-gray-600 truncate bg-gray-100 rounded px-1"><i class="fas fa-quote-left text-gray-400 mr-1 text-xs"></i>${mock.lyricPreview}...</p>
+                    </div>
+                `;
+                container.appendChild(div);
+            });
+        }
+
+        // アルバム内楽曲検索
+        async function fetchAlbumTracks(collectionId, albumName) {
+            State.isLoading = true;
+            document.getElementById('loading-spinner').classList.remove('hidden');
+            
+            // モードを曲に変更し、タイトルをアルバム名にする
+            State.mode = 'song';
+            State.query = `アルバム: ${albumName}`;
+            updateInputUI();
+            resetSearch();
+
+            const url = `https://itunes.apple.com/lookup?id=${collectionId}&entity=song&country=jp`;
+            try {
+                const response = await fetch(url);
+                const data = await response.json();
+                
+                // wrapperType='track' (曲) のみを抽出
+                const tracks = data.results.filter(item => item.wrapperType === 'track');
+                
+                // トラック番号順にソート
+                tracks.sort((a,b) => a.trackNumber - b.trackNumber);
+
+                State.results = tracks.map(item => ({
+                    ...item,
+                    mock: generateMockData(item.trackId)
+                }));
+                State.hasMore = false; // アルバム全曲なので続きはなし
+                renderResults();
+            } catch(e) {
+                showMessage("アルバム情報の取得に失敗しました。");
+            } finally {
+                State.isLoading = false;
+                document.getElementById('loading-spinner').classList.add('hidden');
+            }
+        }
+
+        // スクロール検知 (無限スクロール)
+        function setupScrollListener() {
+            const container = document.getElementById('search-results-container');
+            container.addEventListener('scroll', () => {
+                if(State.isLoading || !State.hasMore || State.mode === 'memo') return;
+                
+                // 下から100pxの位置にきたら追加読み込み
+                if(container.scrollTop + container.clientHeight >= container.scrollHeight - 100) {
+                    doSearch();
+                }
+            });
+        }
+
+        // --- STREAMING_CHUNK: 詳細モーダル制御 ---
+        function openDetail(item) {
+            State.selectedTrack = item;
+            const mock = item.mock;
+            const imgUrl = item.artworkUrl100 ? item.artworkUrl100.replace('100x100bb', '400x400bb') : 'https://placehold.co/400x400/cccccc/ffffff?text=No+Image';
+            
+            const jacketWrapper = document.getElementById('detail-jacket-wrapper');
+            jacketWrapper.className = `w-48 h-48 rounded-xl mb-4 overflow-hidden shadow-2xl relative bg-black mx-auto ${mock.jacketClass}`;
+            document.getElementById('detail-jacket').src = imgUrl;
+            
+            document.getElementById('detail-title').innerText = item.trackName || '不明なタイトル';
+            document.getElementById('detail-artist').innerText = item.artistName || '不明なアーティスト';
+            document.getElementById('detail-album').innerText = item.collectionName || 'アルバム情報なし';
+            
+            document.getElementById('detail-label').innerText = mock.label;
+            document.getElementById('detail-year').innerText = item.releaseDate ? item.releaseDate.substring(0,4) + '年' : '不明';
+            document.getElementById('detail-sales').innerText = `累計 ${mock.sales}万枚`;
+            
+            document.getElementById('detail-lyricist').innerText = mock.lyricist;
+            document.getElementById('detail-composer').innerText = mock.composer;
+            
+            document.getElementById('detail-dam-no').innerText = mock.damNo;
+            document.getElementById('detail-dam-score').innerText = `${mock.damScore} 点`;
+
+            // 試聴オーディオ設定
+            if(item.previewUrl) {
+                State.audio.src = item.previewUrl;
+            } else {
+                State.audio.removeAttribute('src');
+            }
+            State.audio.pause();
+            document.getElementById('play-indicator').classList.add('hidden');
+
+            updateMemoButton();
+
+            const modal = document.getElementById('modal-detail');
+            modal.classList.remove('hidden');
+            // アニメーションリセット
+            modal.children[0].classList.remove('modal-leave');
+            modal.children[0].classList.add('modal-enter');
+        }
+
+        function closeDetail() {
+            const modal = document.getElementById('modal-detail');
+            const inner = modal.children[0];
+            inner.classList.remove('modal-enter');
+            inner.classList.add('modal-leave');
+            
+            State.audio.pause();
+            document.getElementById('play-indicator').classList.add('hidden');
+
+            setTimeout(() => {
+                modal.classList.add('hidden');
+            }, 300); // アニメーション時間
+        }
+
+        // --- オーディオ試聴 ---
+        function playPreview() {
+            if(!State.audio.src) {
+                showMessage("この曲は試聴データが提供されていません。");
+                return;
+            }
+            const indicator = document.getElementById('play-indicator');
+            if(State.audio.paused) {
+                State.audio.play();
+                indicator.classList.remove('hidden');
+            } else {
+                State.audio.pause();
+                indicator.classList.add('hidden');
+            }
+        }
+        State.audio.addEventListener('ended', () => {
+            document.getElementById('play-indicator').classList.add('hidden');
+        });
+
+        // --- 外部連携機能 ---
+        function openLyricsSite() {
+            if(!State.selectedTrack) return;
+            const title = encodeURIComponent(State.selectedTrack.trackName);
+            const artist = encodeURIComponent(State.selectedTrack.artistName);
+            // 外部歌詞サイトの検索URL（例としてGoogle検索を利用）
+            const url = `https://www.google.com/search?q=${title}+${artist}+歌詞`;
+            window.open(url, '_blank');
+        }
+
+        function openDownload() {
+            if(!State.selectedTrack || !State.selectedTrack.trackViewUrl) {
+                 showMessage("ダウンロードリンクが見つかりません。");
+                 return;
+            }
+            // アフィリエイトパラメータを付与（ダミー例: &at=1000lxxx）
+            const affiliateToken = "1000lxxx"; // 実際には取得したトークンを入れる
+            const url = State.selectedTrack.trackViewUrl + `&at=${affiliateToken}`;
+            window.open(url, '_blank');
+        }
+
+        // --- メモ帳機能 ---
+        function toggleMemo() {
+            if(!State.selectedTrack) return;
+            const trackId = State.selectedTrack.trackId;
+            const index = State.favorites.findIndex(t => t.trackId === trackId);
+            
+            if(index >= 0) {
+                State.favorites.splice(index, 1);
+                showMessage("メモ帳から削除しました。");
+            } else {
+                State.favorites.push(State.selectedTrack);
+                showMessage("メモ帳に保存しました。");
+            }
+            
+            localStorage.setItem('melodata_memo', JSON.stringify(State.favorites));
+            updateMemoButton();
+            
+            if(State.mode === 'memo') {
+                State.results = [...State.favorites];
+                renderResults();
+            }
+        }
+
+        function updateMemoButton() {
+            const btn = document.getElementById('btn-save-memo');
+            const trackId = State.selectedTrack.trackId;
+            const isFav = State.favorites.some(t => t.trackId === trackId);
+            
+            if(isFav) {
+                btn.className = "flex-1 bg-gray-500 text-white py-2 rounded shadow text-fixed-base font-bold flex items-center justify-center active:bg-gray-600";
+                btn.innerHTML = '<i class="fas fa-bookmark mr-2 text-yellow-300"></i>保存済み';
+            } else {
+                btn.className = "flex-1 bg-orange-400 text-white py-2 rounded shadow text-fixed-base font-bold flex items-center justify-center active:bg-orange-500";
+                btn.innerHTML = '<i class="far fa-bookmark mr-2"></i>メモ帳保存';
+            }
+        }
+
+        // --- 共有機能 ---
+        function shareTrack() {
+            if(!State.selectedTrack) return;
+            const trackId = State.selectedTrack.trackId;
+            // 現在のURLにパラメータをつける
+            const shareUrl = window.location.origin + window.location.pathname + `?id=${trackId}`;
+            
+            // クリップボードにコピー
+            const tempInput = document.createElement("input");
+            tempInput.value = shareUrl;
+            document.body.appendChild(tempInput);
+            tempInput.select();
+            
+            try {
+                document.execCommand('copy');
+                showMessage("URLをコピーしました！<br>メールやLINEで友達に貼り付けて教えてあげましょう。<br><br><span class='text-sm text-gray-500 break-all'>" + shareUrl + "</span>");
+            } catch (err) {
+                showMessage("コピーに失敗しました。");
+            }
+            document.body.removeChild(tempInput);
+        }
+
+        // 初期起動時のURLパラメータチェック
+        async function checkUrlParams() {
+            const params = new URLSearchParams(window.location.search);
+            const id = params.get('id');
+            if(id) {
+                try {
+                    const response = await fetch(`https://itunes.apple.com/lookup?id=${id}&country=jp`);
+                    const data = await response.json();
+                    if(data.results && data.results.length > 0) {
+                        const item = data.results[0];
+                        item.mock = generateMockData(item.trackId); // モック付与
+                        openDetail(item);
+                    }
+                } catch(e) {
+                    console.error("Shared Track load failed.");
+                }
+            }
+        }
+
+        // --- オプションモーダル制御 ---
+        function openOptions() {
+            const modal = document.getElementById('modal-options');
+            modal.classList.remove('hidden');
+            modal.children[0].classList.remove('modal-leave');
+            modal.children[0].classList.add('modal-enter');
+            
+            // 現在の値をUIに反映
+            document.getElementById('opt-era').value = State.options.era;
+            document.getElementById('opt-genre').value = State.options.genre;
+            document.getElementById('opt-tempo').value = State.options.tempo;
+            document.querySelector(`input[name="opt-hit"][value="${State.options.hit}"]`).checked = true;
+        }
+
+        function closeOptions() {
+            const modal = document.getElementById('modal-options');
+            const inner = modal.children[0];
+            inner.classList.remove('modal-enter');
+            inner.classList.add('modal-leave');
+            setTimeout(() => { modal.classList.add('hidden'); }, 300);
+        }
+
+        function applyOptions() {
+            State.options.era = document.getElementById('opt-era').value;
+            State.options.genre = document.getElementById('opt-genre').value;
+            State.options.tempo = document.getElementById('opt-tempo').value;
+            State.options.hit = document.querySelector('input[name="opt-hit"]:checked').value;
+            
+            closeOptions();
+            
+            if(State.mode !== 'memo' && State.query) {
+                resetSearch();
+                doSearch();
+            } else if (State.mode === 'memo') {
+                // メモ帳のフィルタリング
+                State.results = applyFilters([...State.favorites]);
+                renderResults();
+            }
+        }
+    </script>
+</body>
+</html>
