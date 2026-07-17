@@ -207,24 +207,29 @@
         </div>
 
         <div class="flex-1 overflow-y-auto p-4 space-y-5 pb-8">
-            <div class="flex flex-col items-center text-center">
-                <img id="detail-img" src="" alt="ジャケット" class="w-48 h-48 object-cover rounded-lg shadow-lg mb-4 bg-gray-200">
-                <h2 id="detail-title" class="text-2xl font-bold text-gray-900 leading-tight"></h2>
-                <p id="detail-artist" class="text-lg text-gray-600 mt-2 font-medium"></p>
-            </div>
+        <div class="flex flex-col items-center text-center">
+            <img id="detail-img" src="" alt="ジャケット" class="w-48 h-48 object-cover rounded-lg shadow-lg mb-4 bg-gray-200">
+            <h2 id="detail-title" class="text-2xl font-bold text-gray-900 leading-tight"></h2>
+            <p id="detail-artist" class="text-lg text-gray-600 mt-2 font-medium"></p>
+        </div>
 
-            <div class="grid grid-cols-2 gap-3">
-                <button id="btn-modal-play" onclick="playPreviewInModal()" class="bg-indigo-100 text-indigo-700 border border-indigo-300 py-3 rounded-lg font-bold flex items-center justify-center active:bg-indigo-200 transition-colors">
-                    <span id="icon-modal-play" class="material-icons mr-1">play_circle</span>
-                    <span id="text-modal-play">30秒試聴</span>
-                </button>
-                <button id="btn-lyrics" onclick="openLyrics()" class="bg-indigo-100 text-indigo-700 border border-indigo-300 py-3 rounded-lg font-bold flex items-center justify-center active:bg-indigo-200 transition-colors">
-                    <span class="material-icons mr-1">menu_book</span>歌詞を見る
-                </button>
-            </div>
+        <div class="grid grid-cols-2 gap-3">
+            <button id="btn-modal-play" onclick="playPreviewInModal()" class="bg-indigo-100 text-indigo-700 border border-indigo-300 py-3 rounded-lg font-bold flex items-center justify-center active:bg-indigo-200 transition-colors">
+                <span id="icon-modal-play" class="material-icons mr-1">play_circle</span>
+                <span id="text-modal-play">30秒試聴</span>
+            </button>
+            <button id="btn-lyrics" onclick="openLyrics()" class="bg-indigo-100 text-indigo-700 border border-indigo-300 py-3 rounded-lg font-bold flex items-center justify-center active:bg-indigo-200 transition-colors">
+                <span class="material-icons mr-1">menu_book</span>歌詞を見る
+            </button>
+        </div>
 
-            <div id="wiki-container" class="bg-yellow-50 border border-yellow-300 p-4 rounded-lg text-sm hidden">
-                <div id="wiki-album-header" class="text-xs text-gray-500 mb-2 font-bold"></div>
+        <div id="wiki-container" class="bg-yellow-50 border border-yellow-300 p-4 rounded-lg text-sm">
+            <h3 class="font-bold text-yellow-800 flex items-center mb-3">
+                <span class="material-icons text-yellow-600 mr-1 text-base">history</span> リリース年表
+            </h3>
+            <div id="timeline-list" class="mb-6 space-y-1 text-gray-700 text-xs"></div>
+            
+            <div id="wiki-content-area">
                 <h3 class="font-bold text-yellow-800 flex items-center mb-2">
                     <span class="material-icons text-yellow-600 mr-1 text-base">lightbulb</span> 豆知識 (Wikipediaより)
                 </h3>
@@ -380,10 +385,32 @@
             document.getElementById('loading-indicator').style.display = 'none';
             if (data && data.results) {
                 if (currentMode === 'artist') allFetchedResults = groupToArtists(data.results);
+                else if (currentMode === 'song') allFetchedResults = groupConsolidatedSongs(data.results);
                 else allFetchedResults = data.results;
                 applySortAndRender();
             }
         });
+    }
+
+    function groupConsolidatedSongs(results) {
+        const map = {};
+        const normalizeTitle = (t) => t.replace(/\[.*?\]|\(.*?\)/g, '').trim().toLowerCase();
+        
+        results.forEach(song => {
+            const baseName = normalizeTitle(song.trackName);
+            const key = `${song.artistName}_${baseName}`;
+            
+            if (!map[key]) {
+                map[key] = { ...song, versions: [song] };
+            } else {
+                map[key].versions.push(song);
+                // 一番古い日付の曲を代表にする
+                if (new Date(song.releaseDate) < new Date(map[key].releaseDate)) {
+                    map[key] = { ...song, versions: map[key].versions };
+                }
+            }
+        });
+        return Object.values(map);
     }
 
     function groupToArtists(songResults) {
@@ -423,7 +450,10 @@
             const item = allFetchedResults[i];
             const isArtist = item.isArtistGroup;
             const isAlbum = item.wrapperType === 'collection' || currentMode === 'album';
-            const title = isArtist ? item.artistName : (isAlbum ? item.collectionName : item.trackName);
+            
+            // 発売年の抽出
+            const year = item.releaseDate ? new Date(item.releaseDate).getFullYear() : '不明';
+            const title = (isArtist ? item.artistName : (isAlbum ? item.collectionName : item.trackName)) + (isArtist ? '' : ` (${year})`);
             
             let subText = '';
             if(isArtist) subText = `${item.primaryGenreName || 'ジャンル不明'} | 取得: ${item.trackCount}曲`;
@@ -562,12 +592,20 @@
         }
 
         updateMemoIcon(item.trackId);
-        document.getElementById('wiki-container').style.display = 'none';
         
-        const year = item.releaseDate ? item.releaseDate.substring(0, 4) : '不明';
-        const album = item.collectionName || '不明';
-        document.getElementById('wiki-album-header').textContent = `${year}年 ${album}`;
-        
+        // リリース年表の構築
+        const timelineList = document.getElementById('timeline-list');
+        timelineList.innerHTML = '';
+        if (item.versions && item.versions.length > 0) {
+            const sortedVersions = [...item.versions].sort((a,b) => new Date(a.releaseDate) - new Date(b.releaseDate));
+            sortedVersions.forEach((v, idx) => {
+                const year = new Date(v.releaseDate).getFullYear();
+                const div = document.createElement('div');
+                div.innerHTML = `<span class="font-bold mr-2">${idx === 0 ? '初出:' : '別版:'} ${year}年</span> ${v.collectionName || v.trackName}`;
+                timelineList.appendChild(div);
+            });
+        }
+
         fetchWikipedia(item.artistName);
         document.getElementById('modal-detail').classList.add('active');
     }
@@ -604,17 +642,18 @@
 
     function fetchWikipedia(artistName) {
         if(!artistName) return;
-        fetch(`https://ja.wikipedia.org/w/api.php?format=json&action=query&prop=extracts&exintro&explaintext&redirects=1&titles=${encodeURIComponent(artistName)}&origin=*`)
+        // exintroを外して、より広範囲を取得。excharsで文字数を増やす
+        fetch(`https://ja.wikipedia.org/w/api.php?format=json&action=query&prop=extracts&explaintext&redirects=1&titles=${encodeURIComponent(artistName)}&origin=*&exchars=1500`)
             .then(res => res.json())
             .then(data => {
                 const pages = data.query.pages;
                 const pageId = Object.keys(pages)[0];
                 if (pageId !== "-1" && pages[pageId].extract) {
                     let text = pages[pageId].extract;
-                    if (text.length > 500) text = text.substring(0, 500) + '...';
                     document.getElementById('wiki-text').textContent = text;
                     document.getElementById('wiki-link').href = `https://ja.wikipedia.org/wiki/${encodeURIComponent(artistName)}`;
-                    document.getElementById('wiki-container').style.display = 'block';
+                } else {
+                    document.getElementById('wiki-text').textContent = '情報が見つかりませんでした。';
                 }
             });
     }
