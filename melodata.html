@@ -327,6 +327,11 @@
         else if (mode === 'song') { titleEl.textContent = '曲名で探す'; inputEl.placeholder = '曲名を入力'; } 
         else if (mode === 'album') { titleEl.textContent = 'アルバム名で探す'; inputEl.placeholder = 'アルバム名を入力'; } 
         else if (mode === 'lyrics') { titleEl.textContent = '歌詞ワードで探す'; inputEl.placeholder = '歌詞の一部を入力'; }
+
+        // 画面の表示切り替え後に確実にフォーカスを当ててキーボードを起動させる
+        setTimeout(() => {
+            inputEl.focus();
+        }, 150);
     }
 
     function goToMemo() {
@@ -383,6 +388,33 @@
         });
     }
 
+    // 優先スコアを算出：アルバム名にSingle、シングル、または曲名と一致するものが含まれる場合に最大の優先度を与える
+    function calculateSingleScore(track) {
+        let score = 0;
+        const collName = (track.collectionName || '').toLowerCase();
+        const trkName = (track.trackName || '').toLowerCase();
+
+        // 1. 曲名とアルバム名が完全に同じ、もしくはアルバム名から「- Single」等を省いた部分が同じ場合
+        const cleanCollName = collName.replace(/\[.*?\]|\(.*?\)/g, '').replace(/-\s*single|-\s*ep/g, '').trim();
+        const cleanTrkName = trkName.replace(/\[.*?\]|\(.*?\)/g, '').trim();
+        if (cleanCollName === cleanTrkName && cleanTrkName.length > 0) {
+            score += 100;
+        }
+
+        // 2. 「Single」または「シングル」という文字列がアルバム名にある
+        if (collName.includes('single') || collName.includes('シングル')) {
+            score += 50;
+        }
+
+        // 3. ベストアルバム等のワードが含まれている場合は優先度を大きく下げる
+        if (/ベスト|全曲集|名曲|決定盤|究極|コレクション|best|collection|特盛|パック/i.test(collName)) {
+            score -= 80;
+        }
+        
+        return score;
+    }
+
+    // 重複する楽曲データを賢くまとめ、最良（シングルなど）のレコードを代表にする処理
     function groupConsolidatedSongs(results) {
         const map = {};
         const normalizeTitle = (t) => t.replace(/\[.*?\]|\(.*?\)/g, '').trim().toLowerCase();
@@ -396,11 +428,39 @@
                 map[key] = { ...song, versions: [song] };
             } else {
                 map[key].versions.push(song);
-                if (new Date(song.releaseDate) < new Date(map[key].releaseDate)) {
-                    map[key] = { ...song, versions: map[key].versions };
-                }
             }
         });
+
+        // それぞれのグループ内でバージョンを「発売年」「優先スコア」基準でソートし、最良のものを代表レコードに置き換える
+        Object.keys(map).forEach(key => {
+            const group = map[key];
+            
+            group.versions.forEach(v => {
+                v.displayYear = extractDisplayYear(v);
+                v.singleScore = calculateSingleScore(v);
+            });
+
+            // ソート順：
+            // 1) 発売年（不明は最後に追いやるため9999年扱い）
+            // 2) 発売年が同等の場合はシングル優先スコアの降順
+            // 3) それでも同じ場合は実リリース日の古い順
+            group.versions.sort((a, b) => {
+                const yearA = a.displayYear === '不明' ? 9999 : parseInt(a.displayYear);
+                const yearB = b.displayYear === '不明' ? 9999 : parseInt(b.displayYear);
+                if (yearA !== yearB) return yearA - yearB;
+                
+                if (b.singleScore !== a.singleScore) return b.singleScore - a.singleScore;
+                
+                return new Date(a.releaseDate || 0) - new Date(b.releaseDate || 0);
+            });
+
+            // ソートして一番先頭（最も古く、かつシングルなどの優先度が高いもの）を代表レコードにする
+            const bestVersion = group.versions[0];
+            
+            // バージョン配列は保持したまま、親データを最適なバージョンデータに差し替える
+            map[key] = { ...bestVersion, versions: group.versions };
+        });
+
         return Object.values(map);
     }
 
@@ -417,6 +477,7 @@
         return Object.values(artistMap);
     }
 
+    // カッコ内から信頼できる発売年を抽出するロジック
     function extractDisplayYear(track) {
         const title = (track.collectionName || track.trackName || '');
         // カッコ内などの年号を抽出 (例: 2016)
@@ -569,13 +630,18 @@
                 v.displayYear = extractDisplayYear(v);
                 v.sortYear = v.displayYear === '不明' ? 9999 : parseInt(v.displayYear);
             });
-            const sortedVersions = [...item.versions].sort((a,b) => a.sortYear - b.sortYear);
+            
+            // ソート：発売年（古い順）。発売年が同じ場合はシングルスコア（降順）
+            const sortedVersions = [...item.versions].sort((a,b) => {
+                if (a.sortYear !== b.sortYear) return a.sortYear - b.sortYear;
+                return b.singleScore - a.singleScore;
+            });
             
             sortedVersions.forEach((v, idx) => {
                 const div = document.createElement('div');
                 div.className = idx >= 3 ? 'hidden accordion-timeline' : ''; // 3件を超えたら隠す
                 const yearStr = v.displayYear === '不明' ? '不明' : `${v.displayYear}年`;
-                // 「初出」「別版」の文言を削除
+                // 「初出」「別版」の文言を消去
                 div.innerHTML = `<span class="font-bold mr-2 inline-block w-12">${yearStr}</span> <span>${v.collectionName || v.trackName}</span>`;
                 timelineList.appendChild(div);
             });
@@ -613,9 +679,11 @@
 
     function openLyrics() {
         if (!currentTrackData) return;
-        // カッコを除去して純粋な曲名にする
+        // カッコを除去して純粋な曲名にし、大手の「歌ネット」でURL検索する
         const cleanTitle = currentTrackData.trackName.replace(/\[.*?\]|\(.*?\)/g, '').trim();
-        const url = `https://www.uta-net.com/search/?Keyword=${encodeURIComponent(cleanTitle).replace(/%20/g, '+')}&target=title&type=in`;
+        // 歌ネットのパラメータ検索形式：スペースは「+」に置換
+        const queryParam = encodeURIComponent(cleanTitle).replace(/%20/g, '+').replace(/\s+/g, '+');
+        const url = `https://www.uta-net.com/search/?Keyword=${queryParam}&target=title&type=in`;
         window.open(url, '_blank');
     }
 
@@ -742,6 +810,7 @@
     function clearResults() { document.getElementById('results-container').innerHTML = ''; displayLimit = 0; stopAudio(); }
 
     function getMemoList() { try { return JSON.parse(localStorage.getItem('merodata_memos')) || []; } catch(e) { return []; } }
+    
     function toggleMemo() {
         if (!currentTrackData) return;
         let memos = getMemoList();
@@ -751,6 +820,7 @@
         localStorage.setItem('merodata_memos', JSON.stringify(memos));
         updateMemoIcon(currentTrackData.trackId);
     }
+    
     function removeMemo(trackId) {
         let memos = getMemoList();
         memos = memos.filter(m => m.trackId !== trackId);
@@ -758,11 +828,13 @@
         loadMemoList();
         showToast("削除しました");
     }
+    
     function updateMemoIcon(trackId) {
         const icon = document.getElementById('icon-modal-memo');
         if (getMemoList().find(m => m.trackId === trackId)) { icon.textContent = 'favorite'; icon.classList.add('text-red-500'); }
         else { icon.textContent = 'favorite_border'; icon.classList.remove('text-red-500'); }
     }
+    
     function loadMemoList() { allFetchedResults = getMemoList(); applySortAndRender(); }
     
     function shareSong() {
