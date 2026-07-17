@@ -3,6 +3,11 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <!-- フルスクリーン表示（PWA）用のメタタグ追加 -->
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <meta name="mobile-web-app-capable" content="yes">
+    
     <title>メロ出〜た</title>
     
     <!-- OGP (Open Graph Protocol) -->
@@ -23,6 +28,7 @@
         .screen-container { position: absolute; top: 0; left: 0; right: 0; bottom: 0; display: flex; flex-direction: column; background-color: #f3f4f6; max-width: 600px; margin: 0 auto; box-shadow: 0 0 15px rgba(0,0,0,0.1); }
         .screen-container-white { background-color: #ffffff; }
         .scrollable-content { flex: 1; overflow-y: auto; overflow-x: hidden; -webkit-overflow-scrolling: touch; padding-bottom: 80px; }
+        
         .modal { transition: opacity 0.3s ease; opacity: 0; pointer-events: none; }
         .modal.active { opacity: 1; pointer-events: auto; }
         .modal-content { transition: transform 0.3s ease; transform: translateY(100%); }
@@ -53,7 +59,7 @@
         </p>
     </div>
     
-    <div class="scrollable-content px-4">
+    <div class="scrollable-content px-4 flex flex-col">
         <button onclick="goToSearch('artist')" class="w-full bg-white rounded-2xl shadow-sm flex items-center p-0 overflow-hidden mb-4 active:bg-gray-50 border border-transparent active:border-gray-200 transition-all">
             <div class="w-2 h-full bg-blue-500 self-stretch flex-shrink-0"></div>
             <div class="p-4 flex-1 flex items-center justify-between">
@@ -133,7 +139,7 @@
             </div>
         </button>
 
-        <div class="text-center text-sm text-gray-400 mt-4 mb-8">
+        <div class="mt-auto text-center text-sm text-gray-400 py-4">
             produced by M.Tsuda
         </div>
     </div>
@@ -263,12 +269,17 @@
         document.getElementById('audio-player').addEventListener('ended', stopAudio);
     });
 
+    // フルスクリーンAPIのより確実な呼び出し（iOS Safari等の非対応環境はエラーキャッチ）
     function tryFullScreen() {
         const docEl = document.documentElement;
-        if (!document.fullscreenElement) {
-            // モバイルブラウザでのフルスクリーン化を試行
-            if (docEl.requestFullscreen) docEl.requestFullscreen().catch(()=>{});
-            else if (docEl.webkitRequestFullscreen) docEl.webkitRequestFullscreen().catch(()=>{});
+        const requestFS = docEl.requestFullscreen || docEl.webkitRequestFullscreen || docEl.mozRequestFullScreen || docEl.msRequestFullscreen;
+        
+        if (!document.fullscreenElement && !document.webkitFullscreenElement) {
+            if (requestFS) {
+                requestFS.call(docEl).catch(err => {
+                    console.log("Full-screen API error or not supported on this device/browser.", err);
+                });
+            }
         }
     }
 
@@ -340,7 +351,7 @@
 
     function goBackToTop() {
         stopAudio();
-        // 常にトップ画面に戻る
+        // 階層に関わらず、常にトップ画面へ一気に戻る
         document.getElementById('search-input').parentElement.style.display = 'flex';
         document.getElementById('sort-select').parentElement.style.display = 'flex';
         document.getElementById('page-search').style.display = 'none';
@@ -428,7 +439,7 @@
             }
 
             const innerContent = `
-                <div class="flex-1 flex items-center min-w-0 py-2 px-2" onclick="handleItemClick(${isArtist}, ${isAlbum}, ${i})">
+                <div class="flex-1 flex items-center min-w-0 py-2 px-2 cursor-pointer w-full" onclick="handleItemClick(${isArtist}, ${isAlbum}, ${i})">
                     <img src="${imgUrl}" class="${isArtist ? 'w-16 h-16 object-cover rounded-full' : 'w-16 h-16 object-cover rounded'} mr-3 border border-gray-200" onerror="this.src='data:image/svg+xml;charset=UTF-8,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%2280%22 height=%2280%22 bg=%22%23eee%22%3E%3C/svg%3E'">
                     <div class="flex-1 min-w-0 pr-2">
                         <div class="text-base font-bold text-gray-900 truncate leading-tight">${title}</div>
@@ -439,20 +450,17 @@
             `;
 
             if (currentMode === 'memo') {
-                // スワイプ可能なメモ帳UI
-                el.className = 'relative rounded-lg mb-2 mt-1 overflow-hidden shadow-sm border border-gray-200 bg-transparent'; 
+                // 重なりによるタップ不可バグを防ぐため、横並びの構造に変更
+                el.className = 'rounded-lg mb-2 mt-1 overflow-hidden shadow-sm border border-gray-200 bg-white'; 
                 el.innerHTML = `
-                    <div class="absolute inset-y-0 right-0 w-20 bg-red-500 z-0">
-                        <button onclick="removeMemo(${item.trackId})" class="w-full h-full text-white flex flex-col items-center justify-center active:bg-red-600 transition-colors">
-                            <span class="material-icons text-2xl">delete</span>
-                            <span class="text-[10px] mt-1">削除</span>
-                        </button>
-                    </div>
-                    <div class="relative w-full h-full z-10 flex items-center overflow-x-auto snap-x snap-mandatory hide-scrollbar" style="scroll-snap-type: x mandatory;">
+                    <div class="flex overflow-x-auto snap-x snap-mandatory hide-scrollbar w-full" style="scroll-snap-type: x mandatory;">
                         <div class="w-full shrink-0 snap-start flex items-center bg-white active:bg-gray-50">
                             ${innerContent}
                         </div>
-                        <div class="w-20 shrink-0 snap-end"></div>
+                        <button onclick="removeMemo(${item.trackId})" class="w-20 shrink-0 snap-start bg-red-500 text-white flex flex-col items-center justify-center active:bg-red-600 transition-colors outline-none">
+                            <span class="material-icons text-2xl pointer-events-none">delete</span>
+                            <span class="text-[10px] mt-1 pointer-events-none">削除</span>
+                        </button>
                     </div>
                 `;
             } else {
@@ -474,7 +482,6 @@
     }
 
     function fetchArtistSongs(artistId, artistName) {
-        tryFullScreen();
         currentMode = 'artist-songs';
         document.getElementById('search-title').textContent = artistName;
         clearResults();
@@ -486,7 +493,6 @@
     }
 
     function fetchAlbumTracks(collectionId, collectionName) {
-        tryFullScreen();
         currentMode = 'album-tracks';
         document.getElementById('search-title').textContent = collectionName;
         clearResults();
