@@ -210,6 +210,10 @@
                     <input type="checkbox" id="toggle-gyro" class="rounded text-amber-500 focus:ring-0 w-4 h-4" checked>
                     <label for="toggle-gyro" class="cursor-pointer font-medium">ジャイロ（傾き）センサーを使用</label>
                 </div>
+                <div class="flex items-center gap-2">
+                    <input type="checkbox" id="toggle-invert-gyro" class="rounded text-amber-500 focus:ring-0 w-4 h-4" checked>
+                    <label for="toggle-invert-gyro" class="cursor-pointer font-medium">ジャイロの左右反転</label>
+                </div>
             </div>
         </div>
     </div>
@@ -785,6 +789,24 @@
         }
 
         function createBuilding(x, z, w, h, d, color) {
+            // 建物が道路（および交差点マージン）に侵入しないかチェック
+            const margin = 2.0;
+            const bMinX = x - w / 2 - margin;
+            const bMaxX = x + w / 2 + margin;
+            const bMinZ = z - d / 2 - margin;
+            const bMaxZ = z + d / 2 + margin;
+
+            // 道路1 (x: -12.5 ~ 3.5, z: 20 ~ 200)
+            const overlapRoad1 = (bMaxX >= -15 && bMinX <= 6) && (bMaxZ >= 18 && bMinZ <= 210);
+            // 道路2 (x: -88 ~ 3.5, z: 22 ~ 38)
+            const overlapRoad2 = (bMaxX >= -92 && bMinX <= 6) && (bMaxZ >= 18 && bMinZ <= 42);
+            // 道路3 (x: -88 ~ -72, z: -250 ~ 38)
+            const overlapRoad3 = (bMaxX >= -92 && bMinX <= -68) && (bMaxZ >= -260 && bMinZ <= 42);
+
+            if (overlapRoad1 || overlapRoad2 || overlapRoad3) {
+                return; // 道路と重複する場合は生成をスキップ
+            }
+
             const group = new THREE.Group();
             const mat = new THREE.MeshStandardMaterial({ color, roughness: 0.6 });
             const mesh = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat);
@@ -904,32 +926,29 @@
             // ラーメン屋 (スタート地点)
             createRamenShop(-22, 150);
 
-            // 全コースにわたる街並み（ビル・住宅群）の生成
-            // 道路1の両脇
+            // 街並み（ビル群）の配置 - 道路からしっかり距離をとる
             for (let z = 180; z >= 50; z -= 30) {
-                if (z !== 150) createBuilding(-20, z, 12, 12 + Math.random() * 8, 18, 0x475569);
-                createBuilding(11, z, 12, 14 + Math.random() * 6, 18, 0x334155);
+                if (z !== 150) createBuilding(-22, z, 12, 12 + Math.random() * 8, 18, 0x475569);
+                createBuilding(16, z, 12, 14 + Math.random() * 6, 18, 0x334155);
             }
 
-            // 道路2 (曲がり角の横道) の両脇 (北側 z=48, 南側 z=12)
             for (let x = -15; x >= -70; x -= 25) {
-                createBuilding(x, 48, 18, 10 + Math.random() * 8, 12, 0x3b82f6);
-                createBuilding(x, 12, 18, 12 + Math.random() * 6, 12, 0x1e293b);
-                createVendingMachine(x, 21, 0, x % 2 === 0);
+                createBuilding(x, 54, 18, 10 + Math.random() * 8, 12, 0x3b82f6);
+                createBuilding(x, 6, 18, 12 + Math.random() * 6, 12, 0x1e293b);
+                createVendingMachine(x, 17, 0, x % 2 === 0);
             }
 
-            // 道路3 (ゴールへの一本道) の両脇 (西側 x=-96, 東側 x=-64)
-            for (let z = 10; z >= -260; z -= 30) {
-                if (z <= -200 && z >= -240) continue; // ゴールの家スペースを空ける
-                createBuilding(-96, z, 12, 10 + Math.random() * 8, 18, 0x475569);
-                createBuilding(-64, z, 12, 12 + Math.random() * 6, 18, 0x334155);
-                if (z % 60 === 0) createVendingMachine(-89.5, z, Math.PI / 2, true);
+            for (let z = -10; z >= -260; z -= 30) {
+                if (z <= -200 && z >= -240) continue; // ゴールの家スペース
+                createBuilding(-102, z, 12, 10 + Math.random() * 8, 18, 0x475569);
+                createBuilding(-58, z, 12, 12 + Math.random() * 6, 18, 0x334155);
+                if (z % 60 === 0) createVendingMachine(-92, z, Math.PI / 2, true);
             }
 
-            // ゴールのお届け先の家（道路の左側 x=-94, z=-220）
-            createSuburbanHouse(-94, -220);
+            // ゴールのお届け先の家
+            createSuburbanHouse(-98, -220);
 
-            // 出前を待つ住人（顧客）の3Dモデル（左側歩道上 x=-86, z=-220）
+            // 出前を待つ住人（顧客）
             customerMesh = createCustomerMesh();
             customerMesh.position.copy(customerPos);
             customerMesh.rotation.y = Math.PI / 2;
@@ -1018,11 +1037,11 @@
             dynamicObstacles = [];
             parkedCars = [];
 
-            // 路上駐車車両（3台）
+            // 路上駐車車両（走行車線の左側路肩寄りに配置して対向車線と被らないように修正）
             const parkedPos = [
-                { x: -5.8, z: 90, rot: 0 },
-                { x: -40, z: 24.2, rot: Math.PI / 2 },
-                { x: -74.2, z: -80, rot: 0 }
+                { x: -9.5, z: 100, rot: 0 },
+                { x: -45, z: 25.5, rot: Math.PI / 2 },
+                { x: -85.0, z: -80, rot: 0 }
             ];
 
             for (let p of parkedPos) {
@@ -1039,12 +1058,12 @@
                 });
             }
 
-            // 対向車 5台
+            // 対向車 5台 (対向車線 x = 1.0 上を走行し路上駐車車両と被らない)
             const carColors = [0xd97706, 0xef4444, 0x2563eb, 0x10b981, 0x475569];
             for (let i = 0; i < 5; i++) {
                 const color = carColors[i % carColors.length];
                 const carGroup = createCarMesh(color);
-                carGroup.position.set(4.5, 0, -20 - i * 65);
+                carGroup.position.set(1.0, 0, -20 - i * 65);
                 scene.add(carGroup);
                 dynamicObstacles.push({
                     type: 'car',
@@ -1213,9 +1232,26 @@
             const startDrivingBtn = document.getElementById('start-driving-btn');
             if (startDrivingBtn) {
                 startDrivingBtn.addEventListener('click', () => {
+                    initAudio();
                     const mapModal = document.getElementById('map-modal');
                     if (mapModal) mapModal.classList.add('hidden');
                     startGame();
+                });
+            }
+
+            const toggleGyro = document.getElementById('toggle-gyro');
+            if (toggleGyro) {
+                state.useGyro = toggleGyro.checked;
+                toggleGyro.addEventListener('change', (e) => {
+                    state.useGyro = e.target.checked;
+                });
+            }
+
+            const toggleInvertGyro = document.getElementById('toggle-invert-gyro');
+            if (toggleInvertGyro) {
+                state.invertGyro = toggleInvertGyro.checked;
+                toggleInvertGyro.addEventListener('change', (e) => {
+                    state.invertGyro = e.target.checked;
                 });
             }
 
