@@ -73,39 +73,40 @@
     <div id="canvas-container" class="absolute inset-0 z-0"></div>
 
     <!-- UI Overlay: HUD -->
-    <div id="hud-overlay" class="absolute inset-0 z-10 pointer-events-none hidden flex-col justify-between p-3 sm:p-4 safe-area-bottom">
+    <div id="hud-overlay" class="absolute inset-0 z-10 pointer-events-none hidden flex-col justify-between p-4 safe-area-bottom">
         <!-- Top Status Bar -->
         <div class="flex justify-between items-start w-full gap-2">
             <!-- Timer & Distance -->
-            <div class="bg-gray-900/85 backdrop-blur-md rounded-2xl p-2.5 sm:p-3 border border-gray-700/60 shadow-lg min-w-[130px]">
+            <div class="bg-gray-900/80 backdrop-blur-md rounded-2xl p-3 border border-gray-700/50 shadow-lg min-w-[130px]">
                 <div class="text-[10px] text-gray-400 font-bold uppercase tracking-wider">TIME</div>
                 <div id="hud-timer" class="text-xl sm:text-2xl font-black text-amber-400 tracking-wider font-mono">00:00.00</div>
-                <div id="hud-distance" class="text-[11px] sm:text-xs text-gray-300 mt-0.5">残り距離: <span class="font-bold text-white" id="dist-val">---m</span></div>
+                <div id="hud-distance" class="text-xs text-gray-300 mt-0.5">残り距離: <span class="font-bold text-white" id="dist-val">---m</span></div>
             </div>
 
-            <!-- Mini Navigation Arrow & Turn Early Notice -->
-            <div class="flex flex-col items-center bg-gray-900/85 backdrop-blur-md rounded-2xl p-2 border border-gray-700/60 shadow-lg min-w-[90px]">
-                <div class="text-[10px] text-gray-400 font-bold mb-0.5">TARGET</div>
-                <div id="nav-arrow-ui" class="w-8 h-8 flex items-center justify-center text-red-500 text-xl transition-transform duration-75">
-                    <i class="fa-solid fa-arrow-up"></i>
+            <!-- Mini Navigation Arrow & Notice -->
+            <div class="flex flex-col items-center gap-1">
+                <div class="flex flex-col items-center bg-gray-900/80 backdrop-blur-md rounded-2xl p-2 border border-gray-700/50 shadow-lg">
+                    <div class="text-[10px] text-gray-400 font-bold mb-0.5">TARGET</div>
+                    <div id="nav-arrow-ui" class="w-8 h-8 flex items-center justify-center text-red-500 text-xl transition-transform duration-75">
+                        <i class="fa-solid fa-location-arrow"></i>
+                    </div>
                 </div>
-                <!-- Early Turn Notice Label -->
-                <div id="hud-turn-notice" class="text-[11px] font-black text-red-300 bg-red-900/90 px-2 py-0.5 rounded-full border border-red-500/80 mt-1 hidden animate-pulse">
-                    ▶ 右折
+                <div id="hud-turn-notice" class="hidden bg-red-600 text-white text-xs font-black px-3 py-1 rounded-full shadow-lg border border-white/40 animate-pulse">
+                    ▶ 右折 (0m)
                 </div>
             </div>
 
             <!-- Caution Alert Box -->
-            <div id="hud-warning" class="bg-red-950/90 border border-red-500/70 rounded-2xl p-2.5 shadow-lg flex items-center gap-1.5 opacity-0 transition-opacity duration-200">
+            <div id="hud-warning" class="bg-red-950/80 border border-red-500/60 rounded-2xl p-2.5 shadow-lg flex items-center gap-2 opacity-0 transition-opacity duration-200">
                 <i class="fa-solid fa-triangle-exclamation text-red-400 text-lg animate-bounce"></i>
-                <div class="text-[11px] text-red-200 font-bold">危険・注意！</div>
+                <div class="text-xs text-red-200 font-bold">飛び出し注意！</div>
             </div>
         </div>
 
         <!-- Center Dialogue Box -->
-        <div id="dialogue-box" class="self-center bg-gray-900/95 backdrop-blur-md border-2 border-amber-500/80 rounded-2xl p-3 max-w-xs sm:max-w-sm text-center shadow-2xl transition-all duration-300 opacity-0 transform translate-y-4 pointer-events-auto my-auto">
-            <div id="dialogue-speaker" class="text-[11px] font-bold text-amber-400 tracking-wider mb-0.5">👨‍🍳 ラーメン屋の大将</div>
-            <div id="dialogue-text" class="text-xs sm:text-sm font-semibold text-white leading-snug">「料理を大事に運んでくれ！」</div>
+        <div id="dialogue-box" class="self-center bg-gray-900/90 backdrop-blur-md border-2 border-amber-500/80 rounded-2xl p-3.5 max-w-sm text-center shadow-2xl transition-all duration-300 opacity-0 transform translate-y-4 pointer-events-auto">
+            <div id="dialogue-speaker" class="text-xs font-bold text-amber-400 tracking-wider mb-0.5">👨‍🍳 ラーメン屋の大将</div>
+            <div id="dialogue-text" class="text-xs sm:text-sm font-semibold text-white leading-relaxed">「料理を大事に運んでくれ！」</div>
         </div>
 
         <!-- Countdown Overlay -->
@@ -114,7 +115,7 @@
         </div>
 
         <!-- Steering & Controls Section -->
-        <div class="flex flex-col items-center w-full pointer-events-auto pb-6 sm:pb-8">
+        <div class="flex flex-col items-center w-full pointer-events-auto pb-4 sm:pb-6">
             <!-- Steering Indicator -->
             <div id="steering-indicator" class="mb-3 flex flex-col items-center opacity-80 pointer-events-none">
                 <div class="w-28 sm:w-36 h-2.5 bg-gray-900/90 rounded-full overflow-hidden border border-gray-600 relative shadow-inner">
@@ -186,10 +187,6 @@
                     <input type="checkbox" id="toggle-gyro" class="rounded text-amber-500 focus:ring-0 w-4 h-4" checked>
                     <label for="toggle-gyro" class="cursor-pointer font-medium">ジャイロ（傾き）センサーを使用</label>
                 </div>
-                <div class="flex items-center gap-2">
-                    <input type="checkbox" id="toggle-gyro-invert" class="rounded text-amber-500 focus:ring-0 w-4 h-4">
-                    <label for="toggle-gyro-invert" class="cursor-pointer font-medium text-amber-400">ジャイロ操作の左右を反転する</label>
-                </div>
             </div>
         </div>
     </div>
@@ -253,7 +250,7 @@
             time: 0,
             startTime: 0,
             useGyro: true,
-            invertGyro: false,
+            invertGyro: true, // 反転をデフォルトでON
             gyroGamma: 0,
             targetSteer: 0,
             currentSteer: 0,
@@ -267,7 +264,7 @@
             acceleration: 0.008,
             braking: 0.016,
             friction: 0.985,
-            steerSpeed: 0.005, // Smooth & mild steering speed tuned for better control
+            steerSpeed: 0.005,
             soundEnabled: false
         };
 
@@ -445,11 +442,9 @@
             canvas.height = 256;
             const ctx = canvas.getContext('2d');
 
-            // Header/Body Background
             ctx.fillStyle = isRed ? '#dc2626' : '#2563eb';
             ctx.fillRect(0, 0, 128, 256);
 
-            // Display Light Panel
             ctx.fillStyle = '#fef08a';
             ctx.fillRect(12, 16, 104, 30);
             ctx.fillStyle = '#000000';
@@ -457,28 +452,23 @@
             ctx.textAlign = 'center';
             ctx.fillText(isRed ? 'つめた〜い' : 'あたたか〜い', 64, 38);
 
-            // Drink Display Rows
             ctx.fillStyle = '#1e293b';
             ctx.fillRect(12, 56, 104, 110);
 
-            // Can icons
             for (let row = 0; row < 3; row++) {
                 for (let col = 0; col < 4; col++) {
                     ctx.fillStyle = (row + col) % 2 === 0 ? '#ef4444' : '#3b82f6';
                     ctx.fillRect(20 + col * 24, 64 + row * 34, 16, 24);
-                    // Price tag
                     ctx.fillStyle = '#f59e0b';
                     ctx.fillRect(20 + col * 24, 90 + row * 34, 16, 4);
                 }
             }
 
-            // Coin Slot & Push Button area
             ctx.fillStyle = '#475569';
             ctx.fillRect(12, 174, 104, 28);
             ctx.fillStyle = '#facc15';
             ctx.fillRect(90, 180, 12, 16);
 
-            // Tray outlet
             ctx.fillStyle = '#0f172a';
             ctx.fillRect(16, 210, 96, 32);
 
@@ -487,6 +477,8 @@
 
         function initScene() {
             const container = document.getElementById('canvas-container');
+            if (!container) return;
+
             scene = new THREE.Scene();
             scene.background = new THREE.Color(0x60a5fa);
             scene.fog = new THREE.FogExp2(0x60a5fa, 0.0028);
@@ -580,6 +572,19 @@
             cabin.castShadow = true;
             group.add(cabin);
 
+            // 対向車のヘッドライト [●   ●]
+            const headlightMat = new THREE.MeshBasicMaterial({ color: 0xfffde7 });
+            const headlightGeo = new THREE.CylinderGeometry(0.2, 0.2, 0.08, 16);
+            headlightGeo.rotateX(Math.PI / 2);
+
+            const leftLight = new THREE.Mesh(headlightGeo, headlightMat);
+            leftLight.position.set(-0.75, 0.65, 2.21);
+            group.add(leftLight);
+
+            const rightLight = new THREE.Mesh(headlightGeo, headlightMat);
+            rightLight.position.set(0.75, 0.65, 2.21);
+            group.add(rightLight);
+
             return group;
         }
 
@@ -648,7 +653,6 @@
             mesh.receiveShadow = true;
             group.add(mesh);
 
-            // Add Windows to Buildings
             const winMatOff = new THREE.MeshStandardMaterial({ color: 0x1e293b, roughness: 0.2 });
             const winMatOn = new THREE.MeshBasicMaterial({ color: 0xfef08a });
 
@@ -663,12 +667,10 @@
                     const posX = x - w / 2 + 1.8 + c * 2.8;
                     const posY = r * 3.0;
 
-                    // Front facing window
                     const winFront = win.clone();
                     winFront.position.set(posX, posY, z + d / 2 + 0.02);
                     group.add(winFront);
 
-                    // Back facing window
                     const winBack = win.clone();
                     winBack.position.set(posX, posY, z - d / 2 - 0.02);
                     winBack.rotation.y = Math.PI;
@@ -676,7 +678,6 @@
                 }
             }
 
-            // Random Hanging Side Signboard
             if (Math.random() > 0.5) {
                 const signNames = ['居酒屋', 'カフェ', '歯科', '薬局', 'カラオケ', '書店'];
                 const signText = signNames[Math.floor(Math.random() * signNames.length)];
@@ -704,7 +705,6 @@
             storeGroup.add(sign);
             scene.add(storeGroup);
 
-            // Vending machines next to C-Store
             createVendingMachine(x - 7.0, z + 6.6, 0, true);
             createVendingMachine(x - 5.2, z + 6.6, 0, false);
         }
@@ -723,7 +723,6 @@
             shopGroup.add(sign);
             scene.add(shopGroup);
 
-            // Vending machine near Ramen Shop
             createVendingMachine(x + 5.5, z - 6.6, Math.PI, true);
         }
 
@@ -758,7 +757,6 @@
         }
 
         function buildJapaneseCity() {
-            // Ground
             const ground = new THREE.Mesh(
                 new THREE.PlaneGeometry(800, 800),
                 new THREE.MeshStandardMaterial({ color: 0x1e293b, roughness: 0.9 })
@@ -768,7 +766,6 @@
             ground.receiveShadow = true;
             scene.add(ground);
 
-            // Main Road & Intersection Road
             const roadTex = createRoadTexture();
             roadTex.repeat.set(1, 30);
             const roadMat = new THREE.MeshStandardMaterial({ map: roadTex, roughness: 0.8 });
@@ -791,7 +788,6 @@
             road3.receiveShadow = true;
             scene.add(road3);
 
-            // Buildings and Props
             createConvenienceStore(25, -20);
             createRamenShop(-22, 100);
             createSuburbanHouse(60, -320);
@@ -802,14 +798,12 @@
                 createUtilityPole(-9.5, z);
                 createUtilityPole(9.5, z);
 
-                // Add random vending machines along sidewalks
                 if (z % 80 === 0) {
                     createVendingMachine(-9.0, z - 10, Math.PI / 2, Math.random() > 0.5);
                     createVendingMachine(9.0, z + 10, -Math.PI / 2, Math.random() > 0.5);
                 }
             }
 
-            // 3D Chef Model near Ramen Shop (Start Point Sidewalk)
             chefMesh = createChefMesh();
             chefMesh.position.set(-11.0, 0, 102);
             chefMesh.rotation.y = Math.PI / 3;
@@ -891,14 +885,17 @@
         function buildObstacles() {
             dynamicObstacles = [];
 
-            for (let i = 0; i < 4; i++) {
-                const carGroup = createCarMesh(0xd97706);
-                carGroup.position.set(4.5, 0, -10 - i * 70);
+            const carColors = [0xd97706, 0xef4444, 0x2563eb, 0x10b981, 0x475569];
+
+            for (let i = 0; i < 5; i++) {
+                const color = carColors[i % carColors.length];
+                const carGroup = createCarMesh(color);
+                carGroup.position.set(4.5, 0, -20 - i * 65);
                 scene.add(carGroup);
                 dynamicObstacles.push({
                     type: 'car',
                     mesh: carGroup,
-                    speed: 0.22 + Math.random() * 0.08,
+                    speed: 0.22 + Math.random() * 0.06,
                     direction: new THREE.Vector3(0, 0, 1),
                     radius: 1.8,
                     warned: false
@@ -987,11 +984,9 @@
             ctx.fillStyle = '#0f172a';
             ctx.fillRect(0, 0, w, h);
 
-            // Map orientation: Start Point at Bottom, Goal Point at Top (Driver Forward Perspective)
             const mapX = (x) => ((x + 35) / 115) * w;
             const mapZ = (z) => ((120 - z) / 460) * (h * 0.78) + (h * 0.11);
 
-            // Roads Background
             ctx.strokeStyle = '#334155';
             ctx.lineWidth = 14;
             ctx.beginPath();
@@ -1001,7 +996,6 @@
             ctx.lineTo(mapX(60), mapZ(-340));
             ctx.stroke();
 
-            // Route Line (Start at bottom green, move up -> turn right -> move up to top yellow goal)
             ctx.strokeStyle = '#ef4444';
             ctx.lineWidth = 5;
             ctx.beginPath();
@@ -1011,13 +1005,11 @@
             ctx.lineTo(mapX(goalPoint.x), mapZ(goalPoint.z));
             ctx.stroke();
 
-            // Start Dot (Green)
             ctx.fillStyle = '#10b981';
             ctx.beginPath();
             ctx.arc(mapX(startPoint.x), mapZ(startPoint.z), 7, 0, Math.PI * 2);
             ctx.fill();
 
-            // Goal Dot (Yellow)
             ctx.fillStyle = '#f59e0b';
             ctx.beginPath();
             ctx.arc(mapX(goalPoint.x), mapZ(goalPoint.z), 8, 0, Math.PI * 2);
@@ -1025,38 +1017,39 @@
         }
 
         function initControls() {
-            // Show Map Button (Top Modal)
             const showMapBtn = document.getElementById('show-map-btn');
             if (showMapBtn) {
                 showMapBtn.addEventListener('click', () => {
                     initAudio();
-                    document.getElementById('start-modal').classList.add('hidden');
-                    document.getElementById('map-modal').classList.remove('hidden');
+                    const startModal = document.getElementById('start-modal');
+                    const mapModal = document.getElementById('map-modal');
+                    if (startModal) startModal.classList.add('hidden');
+                    if (mapModal) mapModal.classList.remove('hidden');
                     drawRouteMap();
                 });
             }
 
-            // Start Driving Button (Map Modal)
             const startDrivingBtn = document.getElementById('start-driving-btn');
             if (startDrivingBtn) {
                 startDrivingBtn.addEventListener('click', () => {
-                    document.getElementById('map-modal').classList.add('hidden');
+                    const mapModal = document.getElementById('map-modal');
+                    if (mapModal) mapModal.classList.add('hidden');
                     startGame();
                 });
             }
 
-            // Retry Button (Result Modal)
             const retryBtn = document.getElementById('retry-btn');
             if (retryBtn) {
                 retryBtn.addEventListener('click', () => {
                     resetGame();
-                    document.getElementById('result-modal').classList.add('hidden');
-                    document.getElementById('map-modal').classList.remove('hidden');
+                    const resModal = document.getElementById('result-modal');
+                    const mapModal = document.getElementById('map-modal');
+                    if (resModal) resModal.classList.add('hidden');
+                    if (mapModal) mapModal.classList.remove('hidden');
                     drawRouteMap();
                 });
             }
 
-            // Accel Button Controls (Touch / Mouse)
             const accelBtn = document.getElementById('btn-accel');
             if (accelBtn) {
                 const startAccel = (e) => { e.preventDefault(); state.accelPressed = true; accelBtn.classList.add('active'); };
@@ -1067,7 +1060,6 @@
                 accelBtn.addEventListener('pointercancel', stopAccel);
             }
 
-            // Brake Button Controls (Touch / Mouse)
             const brakeBtn = document.getElementById('btn-brake');
             if (brakeBtn) {
                 const startBrake = (e) => { e.preventDefault(); state.brakePressed = true; brakeBtn.classList.add('active'); };
@@ -1078,7 +1070,6 @@
                 brakeBtn.addEventListener('pointercancel', stopBrake);
             }
 
-            // Manual Steering Buttons
             const leftBtn = document.getElementById('btn-left');
             const rightBtn = document.getElementById('btn-right');
             if (leftBtn) {
@@ -1096,7 +1087,6 @@
                 rightBtn.addEventListener('pointerleave', stopRight);
             }
 
-            // Keyboard Controls (W/A/S/D or Arrow keys for PC play)
             window.addEventListener('keydown', (e) => {
                 if (e.key === 'ArrowUp' || e.key === 'w' || e.key === 'W') state.accelPressed = true;
                 if (e.key === 'ArrowDown' || e.key === 's' || e.key === 'S') state.brakePressed = true;
@@ -1111,14 +1101,11 @@
                 if (e.key === 'ArrowRight' || e.key === 'd' || e.key === 'D') state.rightPressed = false;
             });
 
-            // Gyroscope Handler
             window.addEventListener('deviceorientation', (e) => {
                 if (!state.useGyro || e.gamma === null) return;
                 state.gyroGamma = e.gamma;
 
                 let gamma = e.gamma;
-                
-                // Deadzone handling (3.0 degrees)
                 const deadzone = 3.0;
                 if (Math.abs(gamma) < deadzone) {
                     gamma = 0;
@@ -1126,7 +1113,6 @@
                     gamma = Math.sign(gamma) * (Math.abs(gamma) - deadzone);
                 }
 
-                // Invert default orientation (Tilt right -> Turn Right)
                 let directionSign = state.invertGyro ? 1 : -1;
                 let normalized = THREE.MathUtils.clamp((gamma / 45) * directionSign, -1, 1);
                 
@@ -1134,11 +1120,10 @@
 
                 const pointer = document.getElementById('gyro-pointer');
                 if (pointer) {
-                    pointer.style.transform = `translateX(${state.targetSteer * 45}px)`;
+                    pointer.style.transform = `translateX(${state.targetSteer * -45}px)`;
                 }
             });
 
-            // Gyro Toggle Controls
             const toggleGyro = document.getElementById('toggle-gyro');
             if (toggleGyro) {
                 toggleGyro.onchange = (e) => {
@@ -1148,13 +1133,6 @@
                         if (state.useGyro) steerControls.classList.add('hidden');
                         else steerControls.classList.remove('hidden');
                     }
-                };
-            }
-
-            const toggleGyroInvert = document.getElementById('toggle-gyro-invert');
-            if (toggleGyroInvert) {
-                toggleGyroInvert.onchange = (e) => {
-                    state.invertGyro = e.target.checked;
                 };
             }
         }
@@ -1231,7 +1209,6 @@
                 state.targetSteer = 0;
             }
 
-            // Ultra-smooth lerp transition for steering
             state.currentSteer += (state.targetSteer - state.currentSteer) * 0.04;
 
             if (state.accelPressed) {
@@ -1262,12 +1239,12 @@
             const nextPos = scooterGroup.position.clone().addScaledVector(forward, state.speed);
 
             let isOffRoad = false;
-            if (nextPos.z > -48) {
-                if (Math.abs(nextPos.x) > 11.0) isOffRoad = true;
-            } else if (nextPos.z <= -48 && nextPos.z >= -72) {
-                if (nextPos.x < -20 || nextPos.x > 71) isOffRoad = true;
-            } else if (nextPos.z < -72) {
-                if (Math.abs(nextPos.x - 60) > 11.0) isOffRoad = true;
+            if (nextPos.z > -50) {
+                if (Math.abs(nextPos.x) > 7.5) isOffRoad = true;
+            } else if (nextPos.z <= -50 && nextPos.z >= -70) {
+                if (nextPos.x < -7.5 || nextPos.x > 67.5) isOffRoad = true;
+            } else if (nextPos.z < -70) {
+                if (Math.abs(nextPos.x - 60) > 7.5) isOffRoad = true;
             }
 
             if (isOffRoad) {
@@ -1282,9 +1259,9 @@
 
             if (navArrowMesh) {
                 let navTarget = goalPoint;
-                if (nextPos.z > 10) {
+                if (nextPos.z > -45) {
                     navTarget = intersectionPoint;
-                } else if (nextPos.z <= 10 && nextPos.x < 50) {
+                } else if (nextPos.z <= -45 && nextPos.x < 50) {
                     navTarget = turnBranchPoint;
                 }
                 
@@ -1467,9 +1444,8 @@
             const distEl = document.getElementById('dist-val');
             if (distEl) distEl.innerText = `${isNaN(dist) ? 0 : dist}m`;
 
-            // Early navigation arrow angle update
             let currentTarget = intersectionPoint;
-            if (scooterGroup.position.z <= 10 && scooterGroup.position.x < 50) {
+            if (scooterGroup.position.z <= -45 && scooterGroup.position.x < 50) {
                 currentTarget = turnBranchPoint;
             } else if (scooterGroup.position.x >= 50) {
                 currentTarget = goalPoint;
@@ -1477,14 +1453,12 @@
 
             const dx = currentTarget.x - scooterGroup.position.x;
             const dz = currentTarget.z - scooterGroup.position.z;
-            // Angle relative to vehicle's current orientation
             let targetAngle = Math.atan2(dx, -dz) - (state.scooterRot || 0);
             const arrowEl = document.getElementById('nav-arrow-ui');
             if (arrowEl) {
                 arrowEl.style.transform = `rotate(${targetAngle * (180 / Math.PI)}deg)`;
             }
 
-            // Early turn notice display on HUD
             const turnNoticeEl = document.getElementById('hud-turn-notice');
             if (turnNoticeEl) {
                 if (scooterGroup.position.z <= 10 && scooterGroup.position.z >= -65 && scooterGroup.position.x < 20) {
@@ -1514,7 +1488,8 @@
             camera.aspect = window.innerWidth / window.innerHeight;
             camera.updateProjectionMatrix();
             renderer.setSize(window.innerWidth, window.innerHeight);
-            if (!document.getElementById('map-modal').classList.contains('hidden')) {
+            const mapModal = document.getElementById('map-modal');
+            if (mapModal && !mapModal.classList.contains('hidden')) {
                 drawRouteMap();
             }
         }
