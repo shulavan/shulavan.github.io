@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, maximum-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, maximum-scale=1.0, viewport-fit=cover">
     <title>3D出前ライダー - リアル日本の街並み配達ゲーム</title>
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
@@ -20,36 +20,42 @@
             overflow: hidden;
             font-family: 'Segoe UI', 'Hiragino Kaku Gothic ProN', Meiryo, sans-serif;
             background-color: #0f172a;
+            height: 100vh;
+            height: 100dvh;
         }
         canvas {
             display: block;
             width: 100vw;
             height: 100vh;
+            height: 100dvh;
+        }
+        .safe-area-bottom {
+            padding-bottom: max(1.25rem, env(safe-area-inset-bottom, 1.25rem));
         }
         .touch-btn {
-            background: rgba(15, 23, 42, 0.6);
-            backdrop-filter: blur(8px);
-            border: 2px solid rgba(255, 255, 255, 0.3);
-            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.4);
+            background: rgba(15, 23, 42, 0.75);
+            backdrop-filter: blur(10px);
+            border: 2px solid rgba(255, 255, 255, 0.4);
+            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.5);
             transition: transform 0.05s ease, background-color 0.1s ease;
         }
         .touch-btn:active, .touch-btn.active {
             transform: scale(0.92);
-            background: rgba(255, 255, 255, 0.3);
+            background: rgba(255, 255, 255, 0.35);
         }
         .btn-accel {
             border-color: #4ade80;
-            background: radial-gradient(circle, rgba(74,222,128,0.5) 0%, rgba(34,197,94,0.2) 100%);
+            background: radial-gradient(circle, rgba(74,222,128,0.6) 0%, rgba(34,197,94,0.3) 100%);
         }
         .btn-accel:active, .btn-accel.active {
-            background: radial-gradient(circle, rgba(74,222,128,0.8) 0%, rgba(34,197,94,0.5) 100%);
+            background: radial-gradient(circle, rgba(74,222,128,0.9) 0%, rgba(34,197,94,0.6) 100%);
         }
         .btn-brake {
             border-color: #f87171;
-            background: radial-gradient(circle, rgba(248,113,113,0.5) 0%, rgba(239,68,68,0.2) 100%);
+            background: radial-gradient(circle, rgba(248,113,113,0.6) 0%, rgba(239,68,68,0.3) 100%);
         }
         .btn-brake:active, .btn-brake.active {
-            background: radial-gradient(circle, rgba(248,113,113,0.8) 0%, rgba(239,68,68,0.5) 100%);
+            background: radial-gradient(circle, rgba(248,113,113,0.9) 0%, rgba(239,68,68,0.6) 100%);
         }
         .gyro-bar {
             transition: transform 0.05s ease-out;
@@ -67,39 +73,39 @@
     <div id="canvas-container" class="absolute inset-0 z-0"></div>
 
     <!-- UI Overlay: HUD -->
-    <div id="hud-overlay" class="absolute inset-0 z-10 pointer-events-none hidden flex-col justify-between p-4">
+    <div id="hud-overlay" class="absolute inset-0 z-10 pointer-events-none hidden flex-col justify-between p-3 sm:p-4 safe-area-bottom">
         <!-- Top Status Bar -->
         <div class="flex justify-between items-start w-full gap-2">
             <!-- Timer & Distance -->
-            <div class="bg-gray-900/80 backdrop-blur-md rounded-2xl p-3 border border-gray-700/50 shadow-lg min-w-[140px]">
+            <div class="bg-gray-900/85 backdrop-blur-md rounded-2xl p-2.5 sm:p-3 border border-gray-700/60 shadow-lg min-w-[130px]">
                 <div class="text-[10px] text-gray-400 font-bold uppercase tracking-wider">TIME</div>
-                <div id="hud-timer" class="text-2xl font-black text-amber-400 tracking-wider font-mono">00:00.00</div>
-                <div id="hud-distance" class="text-xs text-gray-300 mt-1">残り距離: <span class="font-bold text-white" id="dist-val">---m</span></div>
+                <div id="hud-timer" class="text-xl sm:text-2xl font-black text-amber-400 tracking-wider font-mono">00:00.00</div>
+                <div id="hud-distance" class="text-[11px] sm:text-xs text-gray-300 mt-0.5">残り距離: <span class="font-bold text-white" id="dist-val">---m</span></div>
             </div>
 
             <!-- Mini Navigation Arrow & Turn Early Notice -->
-            <div class="flex flex-col items-center bg-gray-900/80 backdrop-blur-md rounded-2xl p-2 border border-gray-700/50 shadow-lg min-w-[90px]">
-                <div class="text-[10px] text-gray-400 font-bold mb-1">TARGET</div>
-                <div id="nav-arrow-ui" class="w-10 h-10 flex items-center justify-center text-red-500 text-2xl transition-transform duration-75">
+            <div class="flex flex-col items-center bg-gray-900/85 backdrop-blur-md rounded-2xl p-2 border border-gray-700/60 shadow-lg min-w-[90px]">
+                <div class="text-[10px] text-gray-400 font-bold mb-0.5">TARGET</div>
+                <div id="nav-arrow-ui" class="w-8 h-8 flex items-center justify-center text-red-500 text-xl transition-transform duration-75">
                     <i class="fa-solid fa-location-arrow"></i>
                 </div>
                 <!-- Early Turn Notice Label -->
-                <div id="hud-turn-notice" class="text-xs font-black text-red-400 bg-red-950/80 px-2 py-0.5 rounded-full border border-red-500/50 mt-1 hidden animate-pulse">
+                <div id="hud-turn-notice" class="text-[11px] font-black text-red-300 bg-red-900/90 px-2 py-0.5 rounded-full border border-red-500/80 mt-1 hidden animate-pulse">
                     ▶ 右折
                 </div>
             </div>
 
             <!-- Caution Alert Box -->
-            <div id="hud-warning" class="bg-red-950/80 border border-red-500/60 rounded-2xl p-3 shadow-lg flex items-center gap-2 opacity-0 transition-opacity duration-200">
-                <i class="fa-solid fa-triangle-exclamation text-red-400 text-xl animate-bounce"></i>
-                <div class="text-xs text-red-200 font-bold">危険・飛び出し注意！</div>
+            <div id="hud-warning" class="bg-red-950/90 border border-red-500/70 rounded-2xl p-2.5 shadow-lg flex items-center gap-1.5 opacity-0 transition-opacity duration-200">
+                <i class="fa-solid fa-triangle-exclamation text-red-400 text-lg animate-bounce"></i>
+                <div class="text-[11px] text-red-200 font-bold">危険・注意！</div>
             </div>
         </div>
 
         <!-- Center Dialogue Box -->
-        <div id="dialogue-box" class="self-center bg-gray-900/90 backdrop-blur-md border-2 border-amber-500/80 rounded-2xl p-4 max-w-sm text-center shadow-2xl transition-all duration-300 opacity-0 transform translate-y-4 pointer-events-auto">
-            <div id="dialogue-speaker" class="text-xs font-bold text-amber-400 tracking-wider mb-1">👨‍🍳 ラーメン屋の大将</div>
-            <div id="dialogue-text" class="text-sm font-semibold text-white leading-relaxed">「料理を大事に運んでくれ！」</div>
+        <div id="dialogue-box" class="self-center bg-gray-900/95 backdrop-blur-md border-2 border-amber-500/80 rounded-2xl p-3 max-w-xs sm:max-w-sm text-center shadow-2xl transition-all duration-300 opacity-0 transform translate-y-4 pointer-events-auto my-auto">
+            <div id="dialogue-speaker" class="text-[11px] font-bold text-amber-400 tracking-wider mb-0.5">👨‍🍳 ラーメン屋の大将</div>
+            <div id="dialogue-text" class="text-xs sm:text-sm font-semibold text-white leading-snug">「料理を大事に運んでくれ！」</div>
         </div>
 
         <!-- Countdown Overlay -->
@@ -107,123 +113,133 @@
             <div id="countdown-text" class="text-8xl sm:text-9xl font-black text-amber-400 drop-shadow-[0_10px_20px_rgba(0,0,0,0.8)] tracking-wider">3</div>
         </div>
 
-        <!-- Steering Indicator -->
-        <div id="steering-indicator" class="self-center mb-2 flex flex-col items-center opacity-70">
-            <div class="w-32 h-2 bg-gray-800/80 rounded-full overflow-hidden border border-gray-600 relative">
-                <div id="gyro-pointer" class="w-4 h-full bg-amber-400 rounded-full absolute left-1/2 -translate-x-1/2 gyro-bar"></div>
-            </div>
-            <span class="text-[10px] text-gray-400 mt-1"><i class="fa-solid fa-mobile-screen-button"></i> スマホを左右に傾けてハンドル操作</span>
-        </div>
-
-        <!-- Bottom Controls -->
-        <div class="flex justify-between items-end w-full px-2 pb-2 pointer-events-auto">
-            <!-- Brake Button (Bottom Left) -->
-            <div id="btn-brake" class="touch-btn btn-brake w-24 h-24 sm:w-28 sm:h-28 rounded-full flex flex-col items-center justify-center text-red-200 cursor-pointer active:scale-95 shadow-2xl">
-                <i class="fa-solid fa-hand-paper text-2xl sm:text-3xl mb-1"></i>
-                <span class="text-xs font-black tracking-widest">ブレーキ</span>
+        <!-- Steering & Controls Section -->
+        <div class="flex flex-col items-center w-full pointer-events-auto">
+            <!-- Steering Indicator -->
+            <div id="steering-indicator" class="mb-2 flex flex-col items-center opacity-80 pointer-events-none">
+                <div class="w-28 sm:w-36 h-2.5 bg-gray-900/90 rounded-full overflow-hidden border border-gray-600 relative shadow-inner">
+                    <div id="gyro-pointer" class="w-3.5 h-full bg-amber-400 rounded-full absolute left-1/2 -translate-x-1/2 gyro-bar"></div>
+                </div>
+                <span class="text-[10px] text-gray-300 font-medium mt-1"><i class="fa-solid fa-mobile-screen-button"></i> スマホを左右に傾けて操縦</span>
             </div>
 
-            <!-- Fallback Touch Steering Buttons -->
-            <div id="manual-steer-container" class="hidden flex gap-3 mb-2">
-                <button id="btn-left" class="touch-btn w-16 h-16 rounded-2xl bg-gray-800/80 text-white text-xl flex items-center justify-center"><i class="fa-solid fa-arrow-left"></i></button>
-                <button id="btn-right" class="touch-btn w-16 h-16 rounded-2xl bg-gray-800/80 text-white text-xl flex items-center justify-center"><i class="fa-solid fa-arrow-right"></i></button>
-            </div>
+            <!-- Bottom Controls (Brake Left, Accel Right) -->
+            <div class="flex justify-between items-center w-full px-2 pt-1 mb-1">
+                <!-- Brake Button (Bottom Left) -->
+                <div id="btn-brake" class="touch-btn btn-brake w-20 h-20 sm:w-24 sm:h-24 rounded-full flex flex-col items-center justify-center text-red-100 cursor-pointer active:scale-95 shadow-2xl select-none">
+                    <i class="fa-solid fa-hand-paper text-xl sm:text-2xl mb-0.5"></i>
+                    <span class="text-[11px] font-black tracking-wider">ブレーキ</span>
+                </div>
 
-            <!-- Accel Button (Bottom Right) -->
-            <div id="btn-accel" class="touch-btn btn-accel w-24 h-24 sm:w-28 sm:h-28 rounded-full flex flex-col items-center justify-center text-emerald-200 cursor-pointer active:scale-95 shadow-2xl">
-                <i class="fa-solid fa-gauge-high text-2xl sm:text-3xl mb-1"></i>
-                <span class="text-xs font-black tracking-widest">アクセル</span>
+                <!-- Fallback Touch Steering Buttons -->
+                <div id="manual-steer-container" class="hidden flex gap-3">
+                    <button id="btn-left" class="touch-btn w-14 h-14 rounded-2xl bg-gray-800/90 text-white text-lg flex items-center justify-center active:bg-gray-700"><i class="fa-solid fa-arrow-left"></i></button>
+                    <button id="btn-right" class="touch-btn w-14 h-14 rounded-2xl bg-gray-800/90 text-white text-lg flex items-center justify-center active:bg-gray-700"><i class="fa-solid fa-arrow-right"></i></button>
+                </div>
+
+                <!-- Accel Button (Bottom Right) -->
+                <div id="btn-accel" class="touch-btn btn-accel w-20 h-20 sm:w-24 sm:h-24 rounded-full flex flex-col items-center justify-center text-emerald-100 cursor-pointer active:scale-95 shadow-2xl select-none">
+                    <i class="fa-solid fa-gauge-high text-xl sm:text-2xl mb-0.5"></i>
+                    <span class="text-[11px] font-black tracking-wider">アクセル</span>
+                </div>
             </div>
         </div>
     </div>
 
     <!-- Start Modal -->
-    <div id="start-modal" class="absolute inset-0 z-20 bg-gray-950/90 backdrop-blur-lg flex flex-col items-center justify-center p-6 text-center">
-        <div class="max-w-md w-full bg-gray-900 border border-gray-800 rounded-3xl p-6 sm:p-8 shadow-2xl relative overflow-hidden">
-            <div class="text-5xl mb-3">🛵💨</div>
-            <h1 class="text-2xl sm:text-3xl font-black text-transparent bg-clip-text bg-gradient-to-r from-amber-400 to-orange-500 mb-2">
+    <div id="start-modal" class="absolute inset-0 z-20 bg-gray-950/90 backdrop-blur-lg flex flex-col items-center justify-center p-5 text-center safe-area-bottom">
+        <div class="max-w-md w-full bg-gray-900 border border-gray-800 rounded-3xl p-5 sm:p-7 shadow-2xl relative overflow-hidden">
+            <div class="text-4xl sm:text-5xl mb-2">🛵💨</div>
+            <h1 class="text-xl sm:text-2xl font-black text-transparent bg-clip-text bg-gradient-to-r from-amber-400 to-orange-500 mb-1">
                 日本の街並み 3D出前ライダー
             </h1>
-            <p class="text-xs text-gray-400 mb-6">下町の交差点を抜け、対向車や子供・動物を避けて料理を届けよう！</p>
+            <p class="text-[11px] text-gray-400 mb-4">下町の交差点を抜け、対向車や子供・動物を避けて料理を届けよう！</p>
 
-            <div class="bg-gray-800/60 rounded-2xl p-4 text-left text-xs text-gray-300 mb-6 border border-gray-700/40 space-y-2">
+            <div class="bg-gray-800/60 rounded-2xl p-3.5 text-left text-xs text-gray-300 mb-4 border border-gray-700/40 space-y-1.5">
                 <div class="flex items-center gap-2 font-bold text-amber-400 mb-1">
                     <i class="fa-solid fa-gamepad"></i> 操作・ゲームルール
                 </div>
                 <div class="flex items-center gap-2">
-                    <span class="bg-amber-900/80 text-amber-300 px-2 py-1 rounded text-[10px] font-mono">傾き操作</span>
+                    <span class="bg-amber-900/80 text-amber-300 px-1.5 py-0.5 rounded text-[10px] font-mono">傾き操作</span>
                     <span>スマホを左右に傾けてハンドル（ジャイロ）</span>
                 </div>
                 <div class="flex items-center gap-2">
-                    <span class="bg-emerald-900/80 text-emerald-300 px-2 py-1 rounded text-[10px] font-mono">右下ボタン</span>
+                    <span class="bg-emerald-900/80 text-emerald-300 px-1.5 py-0.5 rounded text-[10px] font-mono">右下ボタン</span>
                     <span>アクセル (前進加速)</span>
                 </div>
                 <div class="flex items-center gap-2">
-                    <span class="bg-red-900/80 text-red-300 px-2 py-1 rounded text-[10px] font-mono">左下ボタン</span>
+                    <span class="bg-red-900/80 text-red-300 px-1.5 py-0.5 rounded text-[10px] font-mono">左下ボタン</span>
                     <span>ブレーキ / バック</span>
                 </div>
-                <div class="text-red-400 font-bold pt-2 border-t border-gray-700 flex items-center gap-1">
+                <div class="text-red-400 font-bold pt-1.5 border-t border-gray-700/80 flex items-center gap-1 text-[11px]">
                     <i class="fa-solid fa-skull"></i> 障害物や壁に接触すると一発事故終了！
                 </div>
             </div>
 
-            <button id="show-map-btn" class="w-full py-4 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 text-gray-950 font-black rounded-2xl shadow-lg shadow-orange-500/30 text-lg transition-transform active:scale-95 flex items-center justify-center gap-2">
+            <button id="show-map-btn" class="w-full py-3.5 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 text-gray-950 font-black rounded-2xl shadow-lg shadow-orange-500/30 text-base transition-transform active:scale-95 flex items-center justify-center gap-2">
                 <i class="fa-solid fa-map-location-dot"></i> コース確認へ進む
             </button>
 
-            <div class="mt-4 flex items-center justify-center gap-2 text-xs text-gray-400">
-                <input type="checkbox" id="toggle-gyro" class="rounded text-amber-500 focus:ring-0" checked>
-                <label for="toggle-gyro" class="cursor-pointer">ジャイロセンサーを使用する</label>
+            <!-- Gyro Settings -->
+            <div class="mt-4 flex flex-col gap-2 items-center text-xs text-gray-300 border-t border-gray-800 pt-3">
+                <div class="flex items-center gap-2">
+                    <input type="checkbox" id="toggle-gyro" class="rounded text-amber-500 focus:ring-0 w-4 h-4" checked>
+                    <label for="toggle-gyro" class="cursor-pointer font-medium">ジャイロ（傾き）センサーを使用</label>
+                </div>
+                <div class="flex items-center gap-2">
+                    <input type="checkbox" id="toggle-gyro-invert" class="rounded text-amber-500 focus:ring-0 w-4 h-4">
+                    <label for="toggle-gyro-invert" class="cursor-pointer font-medium text-amber-400">ジャイロ操作の左右を反転する</label>
+                </div>
             </div>
         </div>
     </div>
 
     <!-- Map Modal -->
-    <div id="map-modal" class="absolute inset-0 z-25 bg-gray-950/95 backdrop-blur-xl flex flex-col items-center justify-center p-4 text-center hidden">
+    <div id="map-modal" class="absolute inset-0 z-25 bg-gray-950/95 backdrop-blur-xl flex flex-col items-center justify-center p-4 text-center hidden safe-area-bottom">
         <div class="max-w-md w-full bg-gray-900 border border-gray-800 rounded-3xl p-5 shadow-2xl flex flex-col items-center">
-            <div class="flex items-center justify-between w-full mb-3">
-                <div class="flex items-center gap-2 font-black text-lg text-amber-400">
+            <div class="flex items-center justify-between w-full mb-2">
+                <div class="flex items-center gap-2 font-black text-base sm:text-lg text-amber-400">
                     <i class="fa-solid fa-route"></i> 最短ルート案内マップ
                 </div>
-                <span class="bg-red-500/20 text-red-400 text-[10px] px-2 py-1 rounded-full border border-red-500/30 font-bold">交差点右折あり</span>
+                <span class="bg-red-500/20 text-red-400 text-[10px] px-2 py-0.5 rounded-full border border-red-500/30 font-bold">交差点右折あり</span>
             </div>
 
             <p class="text-xs text-gray-400 mb-3 text-left w-full">
-                赤線のルートに従って進んでください。途中の交差点での対向車や飛び出しに注意！
+                赤線のルートに従って進んでください。70m手前からナビ案内が出ます。
             </p>
 
-            <canvas id="map-canvas" width="340" height="280" class="w-full max-w-[340px] h-[240px] mb-4 border border-gray-700"></canvas>
+            <canvas id="map-canvas" width="340" height="260" class="w-full max-w-[340px] h-[220px] mb-4 border border-gray-700"></canvas>
 
-            <button id="start-driving-btn" class="w-full py-4 bg-gradient-to-r from-emerald-500 to-green-600 hover:from-emerald-400 hover:to-green-500 text-gray-950 font-black rounded-2xl shadow-lg shadow-green-500/30 text-lg transition-transform active:scale-95 flex items-center justify-center gap-2">
+            <button id="start-driving-btn" class="w-full py-3.5 bg-gradient-to-r from-emerald-500 to-green-600 hover:from-emerald-400 hover:to-green-500 text-gray-950 font-black rounded-2xl shadow-lg shadow-green-500/30 text-base transition-transform active:scale-95 flex items-center justify-center gap-2">
                 <i class="fa-solid fa-motorcycle"></i> 出前スタート！
             </button>
         </div>
     </div>
 
     <!-- Result / Game Over Modal -->
-    <div id="result-modal" class="absolute inset-0 z-30 bg-gray-950/95 backdrop-blur-xl flex flex-col items-center justify-center p-6 text-center hidden">
+    <div id="result-modal" class="absolute inset-0 z-30 bg-gray-950/95 backdrop-blur-xl flex flex-col items-center justify-center p-6 text-center hidden safe-area-bottom">
         <div class="max-w-md w-full bg-gray-900 border border-gray-800 rounded-3xl p-6 sm:p-8 shadow-2xl relative">
-            <div class="text-6xl mb-2" id="result-emoji">💥</div>
-            <h2 class="text-3xl font-black text-red-500 mb-1" id="result-title">事故発生！</h2>
-            <p class="text-xs text-gray-300 mb-6" id="result-sub">障害物と衝突してしまいました！</p>
+            <div class="text-5xl mb-2" id="result-emoji">💥</div>
+            <h2 class="text-2xl sm:text-3xl font-black text-red-500 mb-1" id="result-title">事故発生！</h2>
+            <p class="text-xs text-gray-300 mb-5" id="result-sub">障害物と衝突してしまいました！</p>
 
-            <div id="res-stats-box" class="bg-gray-800/80 rounded-2xl p-4 mb-6 border border-gray-700 space-y-3">
+            <div id="res-stats-box" class="bg-gray-800/80 rounded-2xl p-4 mb-5 border border-gray-700 space-y-2.5">
                 <div class="flex justify-between items-center text-sm">
                     <span class="text-gray-400">配達タイム</span>
-                    <span id="res-time" class="text-xl font-mono font-bold text-amber-300">00:00.00</span>
+                    <span id="res-time" class="text-lg sm:text-xl font-mono font-bold text-amber-300">00:00.00</span>
                 </div>
                 <div class="flex justify-between items-center text-sm">
                     <span class="text-gray-400">事故原因</span>
-                    <span id="res-cause" class="text-sm font-bold text-red-400">対向車との衝突</span>
+                    <span id="res-cause" class="text-xs sm:text-sm font-bold text-red-400">対向車との衝突</span>
                 </div>
-                <hr class="border-gray-700 my-2">
+                <hr class="border-gray-700 my-1.5">
                 <div class="flex justify-between items-center text-base font-bold">
                     <span class="text-gray-300">評価</span>
-                    <span id="res-rank" class="text-3xl font-black text-red-500">GAME OVER</span>
+                    <span id="res-rank" class="text-2xl sm:text-3xl font-black text-red-500">GAME OVER</span>
                 </div>
             </div>
 
-            <button id="retry-btn" class="w-full py-4 bg-gradient-to-r from-amber-500 to-orange-500 text-gray-950 font-black rounded-2xl shadow-lg text-lg transition-transform active:scale-95 flex items-center justify-center gap-2">
+            <button id="retry-btn" class="w-full py-3.5 bg-gradient-to-r from-amber-500 to-orange-500 text-gray-950 font-black rounded-2xl shadow-lg text-base transition-transform active:scale-95 flex items-center justify-center gap-2">
                 <i class="fa-solid fa-rotate-right"></i> もう一度配達する
             </button>
         </div>
@@ -237,6 +253,7 @@
             time: 0,
             startTime: 0,
             useGyro: true,
+            invertGyro: false,
             gyroGamma: 0,
             targetSteer: 0,
             currentSteer: 0,
@@ -250,7 +267,7 @@
             acceleration: 0.008,
             braking: 0.016,
             friction: 0.985,
-            steerSpeed: 0.020, // Reduced from 0.045 for smoother turning
+            steerSpeed: 0.010, // Highly tuned mild steering speed
             soundEnabled: false
         };
 
@@ -267,7 +284,6 @@
         const goalPoint = new THREE.Vector3(60, 0, -320);
 
         let dynamicObstacles = [];
-        let mapWaypoints = [];
 
         // Audio System (Tone.js)
         let synthEngine, synthHorn, synthCrash, synthScream, synthDog, synthCat, synthBeep;
@@ -313,7 +329,6 @@
                     filterEnvelope: { attack: 0.1, decay: 0.2, sustain: 0.5, baseFrequency: 300, octaves: 3 }
                 }).toDestination();
 
-                // F1 Countdown Beep Synth
                 synthBeep = new Tone.Synth({
                     oscillator: { type: "triangle" },
                     envelope: { attack: 0.001, decay: 0.12, sustain: 0, release: 0.08 }
@@ -420,6 +435,52 @@
             ctx.textAlign = 'center';
             ctx.textBaseline = 'middle';
             ctx.fillText(text, 128, 64);
+
+            return new THREE.CanvasTexture(canvas);
+        }
+
+        function createVendingMachineTexture(isRed = true) {
+            const canvas = document.createElement('canvas');
+            canvas.width = 128;
+            canvas.height = 256;
+            const ctx = canvas.getContext('2d');
+
+            // Header/Body Background
+            ctx.fillStyle = isRed ? '#dc2626' : '#2563eb';
+            ctx.fillRect(0, 0, 128, 256);
+
+            // Display Light Panel
+            ctx.fillStyle = '#fef08a';
+            ctx.fillRect(12, 16, 104, 30);
+            ctx.fillStyle = '#000000';
+            ctx.font = 'bold 16px sans-serif';
+            ctx.textAlign = 'center';
+            ctx.fillText(isRed ? 'つめた〜い' : 'あたたか〜い', 64, 38);
+
+            // Drink Display Rows
+            ctx.fillStyle = '#1e293b';
+            ctx.fillRect(12, 56, 104, 110);
+
+            // Can icons
+            for (let row = 0; row < 3; row++) {
+                for (let col = 0; col < 4; col++) {
+                    ctx.fillStyle = (row + col) % 2 === 0 ? '#ef4444' : '#3b82f6';
+                    ctx.fillRect(20 + col * 24, 64 + row * 34, 16, 24);
+                    // Price tag
+                    ctx.fillStyle = '#f59e0b';
+                    ctx.fillRect(20 + col * 24, 90 + row * 34, 16, 4);
+                }
+            }
+
+            // Coin Slot & Push Button area
+            ctx.fillStyle = '#475569';
+            ctx.fillRect(12, 174, 104, 28);
+            ctx.fillStyle = '#facc15';
+            ctx.fillRect(90, 180, 12, 16);
+
+            // Tray outlet
+            ctx.fillStyle = '#0f172a';
+            ctx.fillRect(16, 210, 96, 32);
 
             return new THREE.CanvasTexture(canvas);
         }
@@ -558,6 +619,26 @@
             return group;
         }
 
+        function createVendingMachine(x, z, rotY = 0, isRed = true) {
+            const group = new THREE.Group();
+            group.position.set(x, 0, z);
+            group.rotation.y = rotY;
+
+            const bodyMat = new THREE.MeshStandardMaterial({ color: isRed ? 0xb91c1c : 0x1d4ed8, roughness: 0.3 });
+            const body = new THREE.Mesh(new THREE.BoxGeometry(1.2, 2.2, 0.9), bodyMat);
+            body.position.y = 1.1;
+            body.castShadow = true;
+            group.add(body);
+
+            const frontTex = createVendingMachineTexture(isRed);
+            const frontMat = new THREE.MeshBasicMaterial({ map: frontTex });
+            const frontPanel = new THREE.Mesh(new THREE.PlaneGeometry(1.1, 2.1), frontMat);
+            frontPanel.position.set(0, 1.1, 0.46);
+            group.add(frontPanel);
+
+            scene.add(group);
+        }
+
         function createBuilding(x, z, w, h, d, color) {
             const group = new THREE.Group();
             const mat = new THREE.MeshStandardMaterial({ color, roughness: 0.6 });
@@ -566,6 +647,46 @@
             mesh.castShadow = true;
             mesh.receiveShadow = true;
             group.add(mesh);
+
+            // Add Windows to Buildings
+            const winMatOff = new THREE.MeshStandardMaterial({ color: 0x1e293b, roughness: 0.2 });
+            const winMatOn = new THREE.MeshBasicMaterial({ color: 0xfef08a });
+
+            const rows = Math.floor(h / 3);
+            const cols = Math.floor(w / 3);
+
+            for (let r = 1; r < rows; r++) {
+                for (let c = 0; c < cols; c++) {
+                    const winMat = Math.random() > 0.4 ? winMatOn : winMatOff;
+                    const win = new THREE.Mesh(new THREE.PlaneGeometry(1.2, 1.5), winMat);
+                    
+                    const posX = x - w / 2 + 1.8 + c * 2.8;
+                    const posY = r * 3.0;
+
+                    // Front facing window
+                    const winFront = win.clone();
+                    winFront.position.set(posX, posY, z + d / 2 + 0.02);
+                    group.add(winFront);
+
+                    // Back facing window
+                    const winBack = win.clone();
+                    winBack.position.set(posX, posY, z - d / 2 - 0.02);
+                    winBack.rotation.y = Math.PI;
+                    group.add(winBack);
+                }
+            }
+
+            // Random Hanging Side Signboard
+            if (Math.random() > 0.5) {
+                const signNames = ['居酒屋', 'カフェ', '歯科', '薬局', 'カラオケ', '書店'];
+                const signText = signNames[Math.floor(Math.random() * signNames.length)];
+                const signTex = createSignboardTexture(signText, '#1e1b4b', '#facc15');
+                const sideSign = new THREE.Mesh(new THREE.BoxGeometry(0.1, 2.2, 1.2), new THREE.MeshBasicMaterial({ map: signTex }));
+                const signX = x > 0 ? x - w / 2 - 0.6 : x + w / 2 + 0.6;
+                sideSign.position.set(signX, 5.0, z);
+                group.add(sideSign);
+            }
+
             scene.add(group);
         }
 
@@ -582,6 +703,10 @@
             sign.position.set(x, 6.2, z + 6.1);
             storeGroup.add(sign);
             scene.add(storeGroup);
+
+            // Vending machines next to C-Store
+            createVendingMachine(x - 7.0, z + 6.6, 0, true);
+            createVendingMachine(x - 5.2, z + 6.6, 0, false);
         }
 
         function createRamenShop(x, z) {
@@ -597,6 +722,9 @@
             sign.position.set(x, 5, z - 6.1);
             shopGroup.add(sign);
             scene.add(shopGroup);
+
+            // Vending machine near Ramen Shop
+            createVendingMachine(x + 5.5, z - 6.6, Math.PI, true);
         }
 
         function createSuburbanHouse(x, z) {
@@ -673,6 +801,12 @@
                 createBuilding(20, z, 12, 14 + Math.random() * 6, 18, 0x334155);
                 createUtilityPole(-9.5, z);
                 createUtilityPole(9.5, z);
+
+                // Add random vending machines along sidewalks
+                if (z % 80 === 0) {
+                    createVendingMachine(-9.0, z - 10, Math.PI / 2, Math.random() > 0.5);
+                    createVendingMachine(9.0, z + 10, -Math.PI / 2, Math.random() > 0.5);
+                }
             }
 
             // 3D Chef Model near Ramen Shop (Start Point Sidewalk)
@@ -680,13 +814,6 @@
             chefMesh.position.set(-11.0, 0, 102);
             chefMesh.rotation.y = Math.PI / 3;
             scene.add(chefMesh);
-
-            mapWaypoints = [
-                { x: -4.5, z: 100 },
-                { x: -4.5, z: -60 },
-                { x: 60, z: -60 },
-                { x: 60, z: -320 }
-            ];
         }
 
         function buildScooter() {
@@ -924,13 +1051,13 @@
                 };
             }
 
-            // Touch Accel & Brake
+            // Touch Accel & Brake Buttons
             const btnAccel = document.getElementById('btn-accel');
             if (btnAccel) {
                 const pressAccel = (e) => { e.preventDefault(); state.accelPressed = true; };
                 const releaseAccel = (e) => { e.preventDefault(); state.accelPressed = false; };
-                btnAccel.addEventListener('touchstart', pressAccel);
-                btnAccel.addEventListener('touchend', releaseAccel);
+                btnAccel.addEventListener('touchstart', pressAccel, { passive: false });
+                btnAccel.addEventListener('touchend', releaseAccel, { passive: false });
                 btnAccel.addEventListener('mousedown', pressAccel);
                 btnAccel.addEventListener('mouseup', releaseAccel);
             }
@@ -939,19 +1066,20 @@
             if (btnBrake) {
                 const pressBrake = (e) => { e.preventDefault(); state.brakePressed = true; };
                 const releaseBrake = (e) => { e.preventDefault(); state.brakePressed = false; };
-                btnBrake.addEventListener('touchstart', pressBrake);
-                btnBrake.addEventListener('touchend', releaseBrake);
+                btnBrake.addEventListener('touchstart', pressBrake, { passive: false });
+                btnBrake.addEventListener('touchend', releaseBrake, { passive: false });
                 btnBrake.addEventListener('mousedown', pressBrake);
                 btnBrake.addEventListener('mouseup', releaseBrake);
             }
 
-            // Gyroscope Setup
+            // Gyroscope Handler (Inverted & Tuned Sensitivity)
             window.addEventListener('deviceorientation', (e) => {
                 if (!state.useGyro || e.gamma === null) return;
                 state.gyroGamma = e.gamma;
 
-                // Deadzone handling (ignore small device shakes under 3 degrees)
                 let gamma = e.gamma;
+                
+                // Deadzone handling (3.0 degrees)
                 const deadzone = 3.0;
                 if (Math.abs(gamma) < deadzone) {
                     gamma = 0;
@@ -959,17 +1087,20 @@
                     gamma = Math.sign(gamma) * (Math.abs(gamma) - deadzone);
                 }
 
-                // Smooth non-linear steering response (30 degrees tilt = 100% turn)
-                let normalized = THREE.MathUtils.clamp(gamma / 30, -1, 1);
-                state.targetSteer = Math.sign(normalized) * Math.pow(Math.abs(normalized), 1.4);
+                // Invert or normal direction fix (device tilt left should turn left)
+                let directionSign = state.invertGyro ? -1 : 1;
+                let normalized = THREE.MathUtils.clamp((gamma / 28) * directionSign, -1, 1);
+                
+                // Progressive curve for smooth steering precision
+                state.targetSteer = Math.sign(normalized) * Math.pow(Math.abs(normalized), 1.3);
 
                 const pointer = document.getElementById('gyro-pointer');
                 if (pointer) {
-                    pointer.style.transform = `translateX(${state.targetSteer * 50}px)`;
+                    pointer.style.transform = `translateX(${state.targetSteer * 45}px)`;
                 }
             });
 
-            // Gyro Toggle
+            // Gyro Toggle Controls
             const toggleGyro = document.getElementById('toggle-gyro');
             if (toggleGyro) {
                 toggleGyro.onchange = (e) => {
@@ -979,6 +1110,13 @@
                         if (state.useGyro) steerControls.classList.add('hidden');
                         else steerControls.classList.remove('hidden');
                     }
+                };
+            }
+
+            const toggleGyroInvert = document.getElementById('toggle-gyro-invert');
+            if (toggleGyroInvert) {
+                toggleGyroInvert.onchange = (e) => {
+                    state.invertGyro = e.target.checked;
                 };
             }
         }
@@ -1047,8 +1185,8 @@
         function updatePhysics() {
             if (!state.isPlaying || !scooterGroup) return;
 
-            // Smoother lerp for steering transition
-            state.currentSteer += (state.targetSteer - state.currentSteer) * 0.08;
+            // Ultra-smooth lerp transition for steering
+            state.currentSteer += (state.targetSteer - state.currentSteer) * 0.06;
 
             if (state.accelPressed) {
                 state.speed += state.acceleration;
@@ -1066,8 +1204,8 @@
                 scooterGroup.rotation.y = state.scooterRot;
             }
 
-            scooterGroup.rotation.z = state.currentSteer * state.speed * 0.9;
-            if (handlebar) handlebar.rotation.y = state.currentSteer * 0.5;
+            scooterGroup.rotation.z = state.currentSteer * state.speed * 0.8;
+            if (handlebar) handlebar.rotation.y = state.currentSteer * 0.4;
 
             if (frontWheel && rearWheel) {
                 frontWheel.rotation.x += state.speed * 2;
@@ -1098,7 +1236,6 @@
 
             if (navArrowMesh) {
                 let navTarget = goalPoint;
-                // Switch target to right turn way in advance (70m before intersection)
                 if (nextPos.z > 10) {
                     navTarget = intersectionPoint;
                 } else if (nextPos.z <= 10 && nextPos.x < 50) {
@@ -1222,12 +1359,12 @@
 
             setText('result-emoji', "💥");
             setText('result-title', "事故発生！");
-            setClass('result-title', "text-3xl font-black text-red-500 mb-1");
+            setClass('result-title', "text-2xl sm:text-3xl font-black text-red-500 mb-1");
             setText('result-sub', "配達事故を起こしてしまいました！");
             setText('res-cause', causeText);
-            setClass('res-cause', "text-sm font-bold text-red-400");
+            setClass('res-cause', "text-xs sm:text-sm font-bold text-red-400");
             setText('res-rank', "GAME OVER");
-            setClass('res-rank', "text-3xl font-black text-red-500");
+            setClass('res-rank', "text-2xl sm:text-3xl font-black text-red-500");
 
             const elapsed = (performance.now() - state.startTime) / 1000;
             const mins = Math.floor(elapsed / 60).toString().padStart(2, '0');
@@ -1257,13 +1394,13 @@
 
             setText('result-emoji', "🎉");
             setText('result-title', "配達完了！");
-            setClass('result-title', "text-3xl font-black text-amber-400 mb-1");
+            setClass('result-title', "text-2xl sm:text-3xl font-black text-amber-400 mb-1");
             setText('result-sub', "熱々の料理を最高の状態で届けられました！");
             setText('res-cause', "無事故・パーフェクト配達！");
-            setClass('res-cause', "text-sm font-bold text-emerald-400");
+            setClass('res-cause', "text-xs sm:text-sm font-bold text-emerald-400");
             setText('res-time', `${mins}:${secs}`);
             setText('res-rank', `RANK ${rank}`);
-            setClass('res-rank', "text-3xl font-black text-amber-400");
+            setClass('res-rank', "text-2xl sm:text-3xl font-black text-amber-400");
 
             const hud = document.getElementById('hud-overlay');
             if (hud) hud.classList.add('hidden');
@@ -1303,7 +1440,7 @@
             // Early turn notice display on HUD
             const turnNoticeEl = document.getElementById('hud-turn-notice');
             if (turnNoticeEl) {
-                if (scooterGroup.position.z <= 30 && scooterGroup.position.z >= -65 && scooterGroup.position.x < 20) {
+                if (scooterGroup.position.z <= 10 && scooterGroup.position.z >= -65 && scooterGroup.position.x < 20) {
                     turnNoticeEl.classList.remove('hidden');
                     const distToTurn = Math.max(0, Math.floor(scooterGroup.position.z - (-60)));
                     turnNoticeEl.innerText = `▶ 右折 (${distToTurn}m)`;
