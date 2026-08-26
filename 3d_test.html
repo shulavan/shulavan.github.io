@@ -92,7 +92,12 @@
                     </div>
                 </div>
                 <div id="hud-turn-notice" class="hidden bg-red-600 text-white text-xs font-black px-3 py-1 rounded-full shadow-lg border border-white/40 animate-pulse">
-                    ▶ 右折 (0m)
+                    ◀ 左折 (0m)
+                </div>
+                <!-- Traffic Light Status indicator on HUD -->
+                <div id="hud-signal-status" class="hidden bg-gray-900/90 text-xs font-bold px-3 py-1 rounded-full border border-gray-700 flex items-center gap-1.5 shadow-md">
+                    <span id="signal-dot" class="w-3 h-3 rounded-full bg-emerald-500 animate-ping"></span>
+                    <span id="signal-text" class="text-emerald-400 font-black">信号: 青</span>
                 </div>
             </div>
 
@@ -124,7 +129,7 @@
                 <span class="text-[10px] text-gray-300 font-medium mt-1"><i class="fa-solid fa-mobile-screen-button"></i> スマホを左右に傾けて操縦</span>
             </div>
 
-            <!-- Bottom Controls (Raised position so buttons don't get cut off at bottom) -->
+            <!-- Bottom Controls -->
             <div class="flex justify-between items-center w-full px-4 mb-2">
                 <!-- Brake Button (Bottom Left) -->
                 <div id="btn-brake" class="touch-btn btn-brake w-20 h-20 sm:w-24 sm:h-24 rounded-full flex flex-col items-center justify-center text-red-100 cursor-pointer active:scale-95 shadow-2xl select-none">
@@ -154,11 +159,11 @@
             <h1 class="text-xl sm:text-2xl font-black text-transparent bg-clip-text bg-gradient-to-r from-amber-400 to-orange-500 mb-1">
                 日本の街並み 3D出前ライダー
             </h1>
-            <p class="text-[11px] text-gray-400 mb-4">下町の交差点を抜け、対向車や子供・動物を避けて料理を届けよう！</p>
+            <p class="text-[11px] text-gray-400 mb-4">信号を守り、対向車や子供・動物を避けて料理を届けよう！</p>
 
             <div class="bg-gray-800/60 rounded-2xl p-3.5 text-left text-xs text-gray-300 mb-4 border border-gray-700/40 space-y-1.5">
                 <div class="flex items-center gap-2 font-bold text-amber-400 mb-1">
-                    <i class="fa-solid fa-gamepad"></i> 操作・ゲームルール
+                    <i class="fa-solid fa-gamepad"></i> 操作・ルール
                 </div>
                 <div class="flex items-center gap-2">
                     <span class="bg-amber-900/80 text-amber-300 px-1.5 py-0.5 rounded text-[10px] font-mono">傾き操作</span>
@@ -172,8 +177,8 @@
                     <span class="bg-red-900/80 text-red-300 px-1.5 py-0.5 rounded text-[10px] font-mono">左下ボタン</span>
                     <span>ブレーキ / バック</span>
                 </div>
-                <div class="text-red-400 font-bold pt-1.5 border-t border-gray-700/80 flex items-center gap-1 text-[11px]">
-                    <i class="fa-solid fa-skull"></i> 障害物や壁に接触すると一発事故終了！
+                <div class="text-amber-400 font-bold pt-1.5 border-t border-gray-700/80 flex items-center gap-1 text-[11px]">
+                    <i class="fa-solid fa-traffic-light"></i> 赤信号無視やコースアウトは「⚠️ 違反」、接触は「💥 事故」！
                 </div>
             </div>
 
@@ -198,11 +203,11 @@
                 <div class="flex items-center gap-2 font-black text-base sm:text-lg text-amber-400">
                     <i class="fa-solid fa-route"></i> 最短ルート案内マップ
                 </div>
-                <span class="bg-red-500/20 text-red-400 text-[10px] px-2 py-0.5 rounded-full border border-red-500/30 font-bold">交差点右折あり</span>
+                <span class="bg-emerald-500/20 text-emerald-400 text-[10px] px-2 py-0.5 rounded-full border border-emerald-500/30 font-bold">左折 ➔ 右折 コース</span>
             </div>
 
             <p class="text-xs text-gray-400 mb-3 text-left w-full">
-                赤線のルートに従って進んでください。70m手前からナビ案内が出ます。
+                直進後、最初の交差点を【左折◀】し、次の交差点を【右折▶】してゴールを目指します。
             </p>
 
             <canvas id="map-canvas" width="340" height="260" class="w-full max-w-[340px] h-[220px] mb-4 border border-gray-700"></canvas>
@@ -226,7 +231,7 @@
                     <span id="res-time" class="text-lg sm:text-xl font-mono font-bold text-amber-300">00:00.00</span>
                 </div>
                 <div class="flex justify-between items-center text-sm">
-                    <span class="text-gray-400">事故原因</span>
+                    <span class="text-gray-400">失敗原因</span>
                     <span id="res-cause" class="text-xs sm:text-sm font-bold text-red-400">対向車との衝突</span>
                 </div>
                 <hr class="border-gray-700 my-1.5">
@@ -250,7 +255,7 @@
             time: 0,
             startTime: 0,
             useGyro: true,
-            invertGyro: true, // 反転をデフォルトでON
+            invertGyro: true,
             gyroGamma: 0,
             targetSteer: 0,
             currentSteer: 0,
@@ -265,7 +270,10 @@
             braking: 0.016,
             friction: 0.985,
             steerSpeed: 0.005,
-            soundEnabled: false
+            soundEnabled: false,
+            // Traffic Light System (0: Green, 1: Yellow, 2: Red)
+            signalState: 0,
+            signalTimer: 0
         };
 
         // Three.js Core Objects
@@ -273,14 +281,20 @@
         let scooterGroup, frontWheel, rearWheel, handlebar, headlight;
         let chefMesh;
         let navArrowMesh;
+        let signalLamps = []; // 信号機のライトメッシュ参照
 
-        // Waypoints & Key Locations (Left lane alignment: x = -4.5)
-        const startPoint = new THREE.Vector3(-4.5, 0, 100);
-        const intersectionPoint = new THREE.Vector3(-4.5, 0, -60);
-        const turnBranchPoint = new THREE.Vector3(60, 0, -60);
-        const goalPoint = new THREE.Vector3(60, 0, -320);
+        // Waypoints & Key Locations: Course Layout (Left turn -> Right turn -> Goal)
+        // Start: (-4.5, 0, 150)
+        // Intersection 1: (-4.5, 0, 30) -> Turn Left to (-80, 0, 30)
+        // Intersection 2: (-80, 0, 30) -> Turn Right to (-80, 0, -220)
+        // Goal: (-80, 0, -220)
+        const startPoint = new THREE.Vector3(-4.5, 0, 150);
+        const intersection1Point = new THREE.Vector3(-4.5, 0, 30);
+        const intersection2Point = new THREE.Vector3(-80, 0, 30);
+        const goalPoint = new THREE.Vector3(-80, 0, -220);
 
         let dynamicObstacles = [];
+        let parkedCars = [];
 
         // Audio System (Tone.js)
         let synthEngine, synthHorn, synthCrash, synthScream, synthDog, synthCat, synthBeep;
@@ -557,7 +571,7 @@
             return group;
         }
 
-        function createCarMesh(colorHex) {
+        function createCarMesh(colorHex, isParked = false) {
             const group = new THREE.Group();
             const bodyMat = new THREE.MeshStandardMaterial({ color: colorHex, roughness: 0.2, metalness: 0.5 });
             const glassMat = new THREE.MeshStandardMaterial({ color: 0x1e293b, roughness: 0.1, metalness: 0.9 });
@@ -572,7 +586,7 @@
             cabin.castShadow = true;
             group.add(cabin);
 
-            // 対向車のヘッドライト [●   ●]
+            // 対向車ヘッドライト [●   ●]
             const headlightMat = new THREE.MeshBasicMaterial({ color: 0xfffde7 });
             const headlightGeo = new THREE.CylinderGeometry(0.2, 0.2, 0.08, 16);
             headlightGeo.rotateX(Math.PI / 2);
@@ -585,7 +599,89 @@
             rightLight.position.set(0.75, 0.65, 2.21);
             group.add(rightLight);
 
+            // 路上駐車のハザードランプ点滅用参照
+            if (isParked) {
+                const hazardMat = new THREE.MeshBasicMaterial({ color: 0xf59e0b });
+                const hazardGeo = new THREE.BoxGeometry(0.2, 0.15, 0.1);
+                
+                const hLeft = new THREE.Mesh(hazardGeo, hazardMat);
+                hLeft.position.set(-0.9, 0.65, -2.21);
+                group.add(hLeft);
+
+                const hRight = new THREE.Mesh(hazardGeo, hazardMat);
+                hRight.position.set(0.9, 0.65, -2.21);
+                group.add(hRight);
+
+                group.userData.hazards = [hLeft, hRight];
+            }
+
             return group;
+        }
+
+        function createTrafficLightMesh(x, z, rotY = 0) {
+            const group = new THREE.Group();
+            group.position.set(x, 0, z);
+            group.rotation.y = rotY;
+
+            // 支柱
+            const pole = new THREE.Mesh(
+                new THREE.CylinderGeometry(0.12, 0.12, 6.5, 12),
+                new THREE.MeshStandardMaterial({ color: 0x475569, roughness: 0.5 })
+            );
+            pole.position.y = 3.25;
+            pole.castShadow = true;
+            group.add(pole);
+
+            // 信号機本体（横型）
+            const box = new THREE.Mesh(
+                new THREE.BoxGeometry(2.2, 0.8, 0.35),
+                new THREE.MeshStandardMaterial({ color: 0x1e293b, roughness: 0.3 })
+            );
+            box.position.set(0.6, 6.0, 0);
+            box.castShadow = true;
+            group.add(box);
+
+            // 3色ランプ（青、黄、赤）
+            const lampGeo = new THREE.CylinderGeometry(0.22, 0.22, 0.1, 16);
+            lampGeo.rotateX(Math.PI / 2);
+
+            const blueLamp = new THREE.Mesh(lampGeo, new THREE.MeshBasicMaterial({ color: 0x10b981 }));
+            blueLamp.position.set(0.0, 6.0, 0.18);
+            group.add(blueLamp);
+
+            const yellowLamp = new THREE.Mesh(lampGeo, new THREE.MeshBasicMaterial({ color: 0x332200 }));
+            yellowLamp.position.set(0.6, 6.0, 0.18);
+            group.add(yellowLamp);
+
+            const redLamp = new THREE.Mesh(lampGeo, new THREE.MeshBasicMaterial({ color: 0x330000 }));
+            redLamp.position.set(1.2, 6.0, 0.18);
+            group.add(redLamp);
+
+            signalLamps.push({ blue: blueLamp, yellow: yellowLamp, red: redLamp });
+            scene.add(group);
+        }
+
+        function createCrosswalk(x, z, width = 16, height = 8, isVertical = false) {
+            const group = new THREE.Group();
+            group.position.set(x, 0.01, z);
+
+            const stripes = 6;
+            const stripeMat = new THREE.MeshBasicMaterial({ color: 0xf8fafc });
+
+            for (let i = 0; i < stripes; i++) {
+                if (isVertical) {
+                    const stripe = new THREE.Mesh(new THREE.PlaneGeometry(0.8, height - 1), stripeMat);
+                    stripe.rotation.x = -Math.PI / 2;
+                    stripe.position.set(-width / 2 + 1.5 + i * 2.2, 0, 0);
+                    group.add(stripe);
+                } else {
+                    const stripe = new THREE.Mesh(new THREE.PlaneGeometry(width - 1, 0.8), stripeMat);
+                    stripe.rotation.x = -Math.PI / 2;
+                    stripe.position.set(0, 0, -height / 2 + 1.5 + i * 2.2);
+                    group.add(stripe);
+                }
+            }
+            scene.add(group);
         }
 
         function createPedestrianMesh(colorHex, isKid = false) {
@@ -678,35 +774,7 @@
                 }
             }
 
-            if (Math.random() > 0.5) {
-                const signNames = ['居酒屋', 'カフェ', '歯科', '薬局', 'カラオケ', '書店'];
-                const signText = signNames[Math.floor(Math.random() * signNames.length)];
-                const signTex = createSignboardTexture(signText, '#1e1b4b', '#facc15');
-                const sideSign = new THREE.Mesh(new THREE.BoxGeometry(0.1, 2.2, 1.2), new THREE.MeshBasicMaterial({ map: signTex }));
-                const signX = x > 0 ? x - w / 2 - 0.6 : x + w / 2 + 0.6;
-                sideSign.position.set(signX, 5.0, z);
-                group.add(sideSign);
-            }
-
             scene.add(group);
-        }
-
-        function createConvenienceStore(x, z) {
-            const storeGroup = new THREE.Group();
-            const mat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.3 });
-            const body = new THREE.Mesh(new THREE.BoxGeometry(16, 7, 12), mat);
-            body.position.set(x, 3.5, z);
-            body.castShadow = true;
-            storeGroup.add(body);
-
-            const signTex = createSignboardTexture('C-STORE', '#16a34a', '#ffffff');
-            const sign = new THREE.Mesh(new THREE.BoxGeometry(16.2, 1.8, 0.2), new THREE.MeshBasicMaterial({ map: signTex }));
-            sign.position.set(x, 6.2, z + 6.1);
-            storeGroup.add(sign);
-            scene.add(storeGroup);
-
-            createVendingMachine(x - 7.0, z + 6.6, 0, true);
-            createVendingMachine(x - 5.2, z + 6.6, 0, false);
         }
 
         function createRamenShop(x, z) {
@@ -722,8 +790,6 @@
             sign.position.set(x, 5, z - 6.1);
             shopGroup.add(sign);
             scene.add(shopGroup);
-
-            createVendingMachine(x + 5.5, z - 6.6, Math.PI, true);
         }
 
         function createSuburbanHouse(x, z) {
@@ -746,17 +812,8 @@
             scene.add(houseGroup);
         }
 
-        function createUtilityPole(x, z) {
-            const pole = new THREE.Mesh(
-                new THREE.CylinderGeometry(0.2, 0.25, 12, 8),
-                new THREE.MeshStandardMaterial({ color: 0x64748b, roughness: 0.8 })
-            );
-            pole.position.set(x, 6, z);
-            pole.castShadow = true;
-            scene.add(pole);
-        }
-
         function buildJapaneseCity() {
+            // Ground
             const ground = new THREE.Mesh(
                 new THREE.PlaneGeometry(800, 800),
                 new THREE.MeshStandardMaterial({ color: 0x1e293b, roughness: 0.9 })
@@ -770,42 +827,51 @@
             roadTex.repeat.set(1, 30);
             const roadMat = new THREE.MeshStandardMaterial({ map: roadTex, roughness: 0.8 });
 
-            const road1 = new THREE.Mesh(new THREE.PlaneGeometry(16, 450), roadMat);
+            // Road 1 (Straight down -z: Start to Intersection 1)
+            const road1 = new THREE.Mesh(new THREE.PlaneGeometry(16, 200), roadMat);
             road1.rotation.x = -Math.PI / 2;
-            road1.position.set(0, 0, -50);
+            road1.position.set(0, 0, 100);
             road1.receiveShadow = true;
             scene.add(road1);
 
-            const road2 = new THREE.Mesh(new THREE.PlaneGeometry(200, 16), roadMat);
+            // Road 2 (East-West: Intersection 1 to Intersection 2)
+            const road2 = new THREE.Mesh(new THREE.PlaneGeometry(120, 16), roadMat);
             road2.rotation.x = -Math.PI / 2;
-            road2.position.set(50, 0, -60);
+            road2.position.set(-40, 0, 30);
             road2.receiveShadow = true;
             scene.add(road2);
 
+            // Road 3 (North-South: Intersection 2 to Goal)
             const road3 = new THREE.Mesh(new THREE.PlaneGeometry(16, 300), roadMat);
             road3.rotation.x = -Math.PI / 2;
-            road3.position.set(60, 0, -200);
+            road3.position.set(-80, 0, -100);
             road3.receiveShadow = true;
             scene.add(road3);
 
-            createConvenienceStore(25, -20);
-            createRamenShop(-22, 100);
-            createSuburbanHouse(60, -320);
+            // Crosswalks & Traffic Lights at Intersections
+            // Intersection 1 (x = 0, z = 30)
+            createCrosswalk(0, 42, 16, 6, true);
+            createCrosswalk(-10, 30, 6, 16, false);
+            createTrafficLightMesh(9.5, 42, Math.PI / 2);
 
-            for (let z = 140; z >= -250; z -= 40) {
-                createBuilding(-20, z, 12, 12 + Math.random() * 8, 18, 0x475569);
-                createBuilding(20, z, 12, 14 + Math.random() * 6, 18, 0x334155);
-                createUtilityPole(-9.5, z);
-                createUtilityPole(9.5, z);
+            // Intersection 2 (x = -80, z = 30)
+            createCrosswalk(-70, 30, 6, 16, false);
+            createCrosswalk(-80, 18, 16, 6, true);
+            createTrafficLightMesh(-70.5, 42, 0);
 
-                if (z % 80 === 0) {
-                    createVendingMachine(-9.0, z - 10, Math.PI / 2, Math.random() > 0.5);
-                    createVendingMachine(9.0, z + 10, -Math.PI / 2, Math.random() > 0.5);
+            // Buildings and Ramen Shop
+            createRamenShop(-22, 150);
+            createSuburbanHouse(-80, -220);
+
+            for (let z = 180; z >= -220; z -= 40) {
+                if (Math.abs(z - 30) > 25) {
+                    createBuilding(-20, z, 12, 12 + Math.random() * 8, 18, 0x475569);
+                    createBuilding(20, z, 12, 14 + Math.random() * 6, 18, 0x334155);
                 }
             }
 
             chefMesh = createChefMesh();
-            chefMesh.position.set(-11.0, 0, 102);
+            chefMesh.position.set(-11.0, 0, 152);
             chefMesh.rotation.y = Math.PI / 3;
             scene.add(chefMesh);
         }
@@ -884,9 +950,31 @@
 
         function buildObstacles() {
             dynamicObstacles = [];
+            parkedCars = [];
 
+            // 路上駐車車両（交差点外に3台のみ配置）
+            const parkedPos = [
+                { x: -5.8, z: 90, rot: 0 },
+                { x: -40, z: 24.2, rot: Math.PI / 2 },
+                { x: -74.2, z: -80, rot: 0 }
+            ];
+
+            for (let p of parkedPos) {
+                const pCar = createCarMesh(0x64748b, true);
+                pCar.position.set(p.x, 0, p.z);
+                pCar.rotation.y = p.rot;
+                scene.add(pCar);
+                parkedCars.push(pCar);
+
+                dynamicObstacles.push({
+                    type: 'parked',
+                    mesh: pCar,
+                    radius: 2.1
+                });
+            }
+
+            // 対向車 5台
             const carColors = [0xd97706, 0xef4444, 0x2563eb, 0x10b981, 0x475569];
-
             for (let i = 0; i < 5; i++) {
                 const color = carColors[i % carColors.length];
                 const carGroup = createCarMesh(color);
@@ -902,22 +990,23 @@
                 });
             }
 
-            for (let i = 0; i < 6; i++) {
+            // 歩行者
+            for (let i = 0; i < 4; i++) {
                 const ped = createPedestrianMesh(0x3b82f6);
-                ped.position.set(i % 2 === 0 ? -9 : 9, 0, 60 - i * 50);
+                ped.position.set(i % 2 === 0 ? -9 : 9, 0, 110 - i * 50);
                 scene.add(ped);
                 dynamicObstacles.push({
                     type: 'pedestrian',
                     mesh: ped,
                     speed: 0.03,
                     direction: new THREE.Vector3(0, 0, i % 2 === 0 ? -1 : 1),
-                    radius: 0.9,
-                    warned: false
+                    radius: 0.9
                 });
             }
 
+            // 飛び出す子供
             const kid1 = createPedestrianMesh(0xef4444, true);
-            kid1.position.set(-13, 0, -20);
+            kid1.position.set(-13, 0, 70);
             scene.add(kid1);
             dynamicObstacles.push({
                 type: 'kid',
@@ -926,26 +1015,12 @@
                 triggerDist: 58,
                 speed: 0.20,
                 direction: new THREE.Vector3(1, 0, 0),
-                radius: 0.8,
-                warned: false
+                radius: 0.8
             });
 
-            const kid2 = createPedestrianMesh(0xf59e0b, true);
-            kid2.position.set(73, 0, -200);
-            scene.add(kid2);
-            dynamicObstacles.push({
-                type: 'kid',
-                mesh: kid2,
-                triggered: false,
-                triggerDist: 58,
-                speed: 0.22,
-                direction: new THREE.Vector3(-1, 0, 0),
-                radius: 0.8,
-                warned: false
-            });
-
+            // 犬・猫
             const dog = createAnimalMesh('dog');
-            dog.position.set(-12, 0, 20);
+            dog.position.set(-12, 0, 110);
             scene.add(dog);
             dynamicObstacles.push({
                 type: 'dog',
@@ -954,23 +1029,55 @@
                 triggerDist: 40,
                 speed: 0.13,
                 direction: new THREE.Vector3(1, 0, 0),
-                radius: 0.7,
-                warned: false
+                radius: 0.7
             });
+        }
 
-            const cat = createAnimalMesh('cat');
-            cat.position.set(72, 0, -150);
-            scene.add(cat);
-            dynamicObstacles.push({
-                type: 'cat',
-                mesh: cat,
-                triggered: false,
-                triggerDist: 35,
-                speed: 0.15,
-                direction: new THREE.Vector3(-1, 0, 0),
-                radius: 0.6,
-                warned: false
-            });
+        function updateTrafficSignals() {
+            state.signalTimer += 0.016;
+            if (state.signalTimer > 11) state.signalTimer = 0;
+
+            if (state.signalTimer < 5) {
+                state.signalState = 0; // 青 (0~5s)
+            } else if (state.signalTimer < 7) {
+                state.signalState = 1; // 黄 (5~7s)
+            } else {
+                state.signalState = 2; // 赤 (7~11s)
+            }
+
+            // ランプの発光色切り替え
+            for (let lamp of signalLamps) {
+                lamp.blue.material.color.setHex(state.signalState === 0 ? 0x10b981 : 0x022c22);
+                lamp.yellow.material.color.setHex(state.signalState === 1 ? 0xf59e0b : 0x451a03);
+                lamp.red.material.color.setHex(state.signalState === 2 ? 0xef4444 : 0x450a0a);
+            }
+
+            // HUD信号表示の更新
+            const sigDot = document.getElementById('signal-dot');
+            const sigText = document.getElementById('signal-text');
+            if (sigDot && sigText) {
+                if (state.signalState === 0) {
+                    sigDot.className = "w-3 h-3 rounded-full bg-emerald-500 animate-ping";
+                    sigText.className = "text-emerald-400 font-black";
+                    sigText.innerText = "信号: 青";
+                } else if (state.signalState === 1) {
+                    sigDot.className = "w-3 h-3 rounded-full bg-amber-500 animate-pulse";
+                    sigText.className = "text-amber-400 font-black";
+                    sigText.innerText = "信号: 黄";
+                } else {
+                    sigDot.className = "w-3 h-3 rounded-full bg-red-500 animate-bounce";
+                    sigText.className = "text-red-400 font-black";
+                    sigText.innerText = "信号: 赤";
+                }
+            }
+
+            // 路上駐車のハザードランプ点滅
+            const hazardBlink = Math.floor(performance.now() / 400) % 2 === 0;
+            for (let pCar of parkedCars) {
+                if (pCar.userData.hazards) {
+                    pCar.userData.hazards.forEach(h => h.material.color.setHex(hazardBlink ? 0xf59e0b : 0x451a03));
+                }
+            }
         }
 
         function drawRouteMap() {
@@ -984,32 +1091,36 @@
             ctx.fillStyle = '#0f172a';
             ctx.fillRect(0, 0, w, h);
 
-            const mapX = (x) => ((x + 35) / 115) * w;
-            const mapZ = (z) => ((120 - z) / 460) * (h * 0.78) + (h * 0.11);
+            const mapX = (x) => ((x + 95) / 120) * (w * 0.8) + (w * 0.1);
+            const mapZ = (z) => ((170 - z) / 410) * (h * 0.8) + (h * 0.1);
 
+            // 道路ライン (直進 ➔ 左折 ➔ 右折)
             ctx.strokeStyle = '#334155';
             ctx.lineWidth = 14;
             ctx.beginPath();
-            ctx.moveTo(mapX(-4.5), mapZ(120));
-            ctx.lineTo(mapX(-4.5), mapZ(-60));
-            ctx.lineTo(mapX(60), mapZ(-60));
-            ctx.lineTo(mapX(60), mapZ(-340));
+            ctx.moveTo(mapX(-4.5), mapZ(160));
+            ctx.lineTo(mapX(-4.5), mapZ(30));
+            ctx.lineTo(mapX(-80), mapZ(30));
+            ctx.lineTo(mapX(-80), mapZ(-230));
             ctx.stroke();
 
+            // 赤ルート案内線
             ctx.strokeStyle = '#ef4444';
             ctx.lineWidth = 5;
             ctx.beginPath();
             ctx.moveTo(mapX(startPoint.x), mapZ(startPoint.z));
-            ctx.lineTo(mapX(intersectionPoint.x), mapZ(intersectionPoint.z));
-            ctx.lineTo(mapX(turnBranchPoint.x), mapZ(turnBranchPoint.z));
+            ctx.lineTo(mapX(intersection1Point.x), mapZ(intersection1Point.z));
+            ctx.lineTo(mapX(intersection2Point.x), mapZ(intersection2Point.z));
             ctx.lineTo(mapX(goalPoint.x), mapZ(goalPoint.z));
             ctx.stroke();
 
+            // スタート地点
             ctx.fillStyle = '#10b981';
             ctx.beginPath();
             ctx.arc(mapX(startPoint.x), mapZ(startPoint.z), 7, 0, Math.PI * 2);
             ctx.fill();
 
+            // ゴール地点
             ctx.fillStyle = '#f59e0b';
             ctx.beginPath();
             ctx.arc(mapX(goalPoint.x), mapZ(goalPoint.z), 8, 0, Math.PI * 2);
@@ -1070,23 +1181,6 @@
                 brakeBtn.addEventListener('pointercancel', stopBrake);
             }
 
-            const leftBtn = document.getElementById('btn-left');
-            const rightBtn = document.getElementById('btn-right');
-            if (leftBtn) {
-                const startLeft = (e) => { e.preventDefault(); state.leftPressed = true; };
-                const stopLeft = (e) => { e.preventDefault(); state.leftPressed = false; };
-                leftBtn.addEventListener('pointerdown', startLeft);
-                leftBtn.addEventListener('pointerup', stopLeft);
-                leftBtn.addEventListener('pointerleave', stopLeft);
-            }
-            if (rightBtn) {
-                const startRight = (e) => { e.preventDefault(); state.rightPressed = true; };
-                const stopRight = (e) => { e.preventDefault(); state.rightPressed = false; };
-                rightBtn.addEventListener('pointerdown', startRight);
-                rightBtn.addEventListener('pointerup', stopRight);
-                rightBtn.addEventListener('pointerleave', stopRight);
-            }
-
             window.addEventListener('keydown', (e) => {
                 if (e.key === 'ArrowUp' || e.key === 'w' || e.key === 'W') state.accelPressed = true;
                 if (e.key === 'ArrowDown' || e.key === 's' || e.key === 'S') state.brakePressed = true;
@@ -1123,18 +1217,6 @@
                     pointer.style.transform = `translateX(${state.targetSteer * -45}px)`;
                 }
             });
-
-            const toggleGyro = document.getElementById('toggle-gyro');
-            if (toggleGyro) {
-                toggleGyro.onchange = (e) => {
-                    state.useGyro = e.target.checked;
-                    const steerControls = document.getElementById('manual-steer-container');
-                    if (steerControls) {
-                        if (state.useGyro) steerControls.classList.add('hidden');
-                        else steerControls.classList.remove('hidden');
-                    }
-                };
-            }
         }
 
         function startCountdown() {
@@ -1189,6 +1271,7 @@
             state.scooterRot = 0;
             state.targetSteer = 0;
             state.currentSteer = 0;
+            state.signalTimer = 0;
 
             if (scooterGroup) {
                 scooterGroup.position.copy(startPoint);
@@ -1238,18 +1321,27 @@
             const forward = new THREE.Vector3(0, 0, -1).applyAxisAngle(new THREE.Vector3(0, 1, 0), state.scooterRot);
             const nextPos = scooterGroup.position.clone().addScaledVector(forward, state.speed);
 
+            // コースアウト判定 (歩道・壁への侵入)
             let isOffRoad = false;
-            if (nextPos.z > -50) {
+            if (nextPos.z > 38) {
                 if (Math.abs(nextPos.x) > 7.5) isOffRoad = true;
-            } else if (nextPos.z <= -50 && nextPos.z >= -70) {
-                if (nextPos.x < -7.5 || nextPos.x > 67.5) isOffRoad = true;
-            } else if (nextPos.z < -70) {
-                if (Math.abs(nextPos.x - 60) > 7.5) isOffRoad = true;
+            } else if (nextPos.z <= 38 && nextPos.z >= 22) {
+                if (nextPos.x > 7.5 || nextPos.x < -87.5) isOffRoad = true;
+            } else if (nextPos.z < 22) {
+                if (Math.abs(nextPos.x - (-80)) > 7.5) isOffRoad = true;
             }
 
             if (isOffRoad) {
-                triggerGameOver("歩道・障害物（壁）に激突しました！");
+                triggerGameOver("歩道・コース外へ脱線しました！", false);
                 return;
+            }
+
+            // 赤信号無視のチェック（交差点の手前停止線を赤で超えた場合）
+            if (state.signalState === 2) { // 赤信号
+                if (scooterGroup.position.z > 42 && nextPos.z <= 42 && Math.abs(nextPos.x) < 8.0) {
+                    triggerGameOver("赤信号を無視して交差点に進入しました！", false);
+                    return;
+                }
             }
 
             updateDynamicObstacles(nextPos);
@@ -1257,12 +1349,13 @@
 
             playEngineSound(state.speed / state.maxSpeed);
 
+            // ナビゲーションターゲット切り替え
             if (navArrowMesh) {
-                let navTarget = goalPoint;
-                if (nextPos.z > -45) {
-                    navTarget = intersectionPoint;
-                } else if (nextPos.z <= -45 && nextPos.x < 50) {
-                    navTarget = turnBranchPoint;
+                let navTarget = intersection1Point;
+                if (nextPos.z <= 40 && nextPos.x > -70) {
+                    navTarget = intersection2Point;
+                } else if (nextPos.x <= -70) {
+                    navTarget = goalPoint;
                 }
                 
                 navArrowMesh.position.copy(scooterGroup.position).add(new THREE.Vector3(0, 3.2, 0));
@@ -1280,7 +1373,7 @@
             for (let obs of dynamicObstacles) {
                 if (obs.type === 'car') {
                     obs.mesh.position.addScaledVector(obs.direction, obs.speed);
-                    if (obs.mesh.position.z > 120) obs.mesh.position.z = -280;
+                    if (obs.mesh.position.z > 170) obs.mesh.position.z = -150;
 
                     const dist = obs.mesh.position.distanceTo(playerPos);
                     if (dist < 30 && !obs.warned) {
@@ -1291,18 +1384,26 @@
 
                     if (dist < obs.radius) {
                         triggerHornSound();
-                        triggerGameOver("対向車と正面衝突しました！");
+                        triggerGameOver("対向車と正面衝突しました！", true);
+                        return;
+                    }
+                }
+                else if (obs.type === 'parked') {
+                    const dist = obs.mesh.position.distanceTo(playerPos);
+                    if (dist < obs.radius) {
+                        triggerCrashSound();
+                        triggerGameOver("路上駐車車両と衝突しました！", true);
                         return;
                     }
                 }
                 else if (obs.type === 'pedestrian') {
                     obs.mesh.position.addScaledVector(obs.direction, obs.speed);
-                    if (Math.abs(obs.mesh.position.z) > 300) obs.direction.negate();
+                    if (Math.abs(obs.mesh.position.z) > 200) obs.direction.negate();
 
                     const dist = obs.mesh.position.distanceTo(playerPos);
                     if (dist < obs.radius) {
                         triggerScreamSound();
-                        triggerGameOver("通行人と接触してしまいました！");
+                        triggerGameOver("通行人と接触してしまいました！", true);
                         return;
                     }
                 }
@@ -1320,16 +1421,15 @@
 
                     if (distToPlayer < obs.radius) {
                         triggerScreamSound();
-                        triggerGameOver("飛び出してきた子供と衝突しました！");
+                        triggerGameOver("飛び出してきた子供と衝突しました！", true);
                         return;
                     }
                 }
-                else if (obs.type === 'dog' || obs.type === 'cat') {
+                else if (obs.type === 'dog') {
                     const distToPlayer = obs.mesh.position.distanceTo(playerPos);
                     if (!obs.triggered && distToPlayer < obs.triggerDist) {
                         obs.triggered = true;
-                        if (obs.type === 'dog') triggerDogBark();
-                        else triggerCatMeow();
+                        triggerDogBark();
                         warnPlayer = true;
                     }
 
@@ -1338,9 +1438,8 @@
                     }
 
                     if (distToPlayer < obs.radius) {
-                        if (obs.type === 'dog') triggerDogBark();
-                        else triggerCatMeow();
-                        triggerGameOver(obs.type === 'dog' ? "犬と接触してしまいました！" : "猫と接触してしまいました！");
+                        triggerDogBark();
+                        triggerGameOver("犬と接触してしまいました！", true);
                         return;
                     }
                 }
@@ -1372,20 +1471,28 @@
             }, duration);
         }
 
-        function triggerGameOver(causeText) {
+        function triggerGameOver(causeText, isCollision = true) {
             state.isPlaying = false;
             playEngineSound(0);
-            triggerCrashSound();
+            if (isCollision) triggerCrashSound();
 
             const setText = (id, text) => { const el = document.getElementById(id); if (el) el.innerText = text; };
             const setClass = (id, cls) => { const el = document.getElementById(id); if (el) el.className = cls; };
 
-            setText('result-emoji', "💥");
-            setText('result-title', "事故発生！");
-            setClass('result-title', "text-2xl sm:text-3xl font-black text-red-500 mb-1");
-            setText('result-sub', "配達事故を起こしてしまいました！");
+            if (isCollision) {
+                setText('result-emoji', "💥");
+                setText('result-title', "事故発生！");
+                setClass('result-title', "text-2xl sm:text-3xl font-black text-red-500 mb-1");
+                setText('result-sub', "障害物と激しく衝突してしまいました！");
+            } else {
+                setText('result-emoji', "⚠️");
+                setText('result-title', "交通違反・脱線！");
+                setClass('result-title', "text-2xl sm:text-3xl font-black text-amber-500 mb-1");
+                setText('result-sub', "交通ルール違反またはコース外に逸脱しました！");
+            }
+
             setText('res-cause', causeText);
-            setClass('res-cause', "text-xs sm:text-sm font-bold text-red-400");
+            setClass('res-cause', isCollision ? "text-xs sm:text-sm font-bold text-red-400" : "text-xs sm:text-sm font-bold text-amber-400");
             setText('res-rank', "GAME OVER");
             setClass('res-rank', "text-2xl sm:text-3xl font-black text-red-500");
 
@@ -1444,10 +1551,10 @@
             const distEl = document.getElementById('dist-val');
             if (distEl) distEl.innerText = `${isNaN(dist) ? 0 : dist}m`;
 
-            let currentTarget = intersectionPoint;
-            if (scooterGroup.position.z <= -45 && scooterGroup.position.x < 50) {
-                currentTarget = turnBranchPoint;
-            } else if (scooterGroup.position.x >= 50) {
+            let currentTarget = intersection1Point;
+            if (scooterGroup.position.z <= 40 && scooterGroup.position.x > -70) {
+                currentTarget = intersection2Point;
+            } else if (scooterGroup.position.x <= -70) {
                 currentTarget = goalPoint;
             }
 
@@ -1461,9 +1568,13 @@
 
             const turnNoticeEl = document.getElementById('hud-turn-notice');
             if (turnNoticeEl) {
-                if (scooterGroup.position.z <= 10 && scooterGroup.position.z >= -65 && scooterGroup.position.x < 20) {
+                if (scooterGroup.position.z <= 90 && scooterGroup.position.z >= 35 && scooterGroup.position.x > -20) {
                     turnNoticeEl.classList.remove('hidden');
-                    const distToTurn = Math.max(0, Math.floor(scooterGroup.position.z - (-60)));
+                    const distToTurn = Math.max(0, Math.floor(scooterGroup.position.z - 30));
+                    turnNoticeEl.innerText = `◀ 左折 (${distToTurn}m)`;
+                } else if (scooterGroup.position.x <= -20 && scooterGroup.position.x >= -75 && Math.abs(scooterGroup.position.z - 30) < 15) {
+                    turnNoticeEl.classList.remove('hidden');
+                    const distToTurn = Math.max(0, Math.floor(-70 - scooterGroup.position.x));
                     turnNoticeEl.innerText = `▶ 右折 (${distToTurn}m)`;
                 } else {
                     turnNoticeEl.classList.add('hidden');
@@ -1496,6 +1607,10 @@
 
         function animate() {
             requestAnimationFrame(animate);
+
+            if (state.isPlaying) {
+                updateTrafficSignals();
+            }
 
             updatePhysics();
             updateHUD();
