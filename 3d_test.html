@@ -77,11 +77,15 @@
                 <div id="hud-distance" class="text-xs text-gray-300 mt-1">残り距離: <span class="font-bold text-white" id="dist-val">---m</span></div>
             </div>
 
-            <!-- Mini Navigation Arrow -->
-            <div class="flex flex-col items-center bg-gray-900/80 backdrop-blur-md rounded-2xl p-2 border border-gray-700/50 shadow-lg">
+            <!-- Mini Navigation Arrow & Turn Early Notice -->
+            <div class="flex flex-col items-center bg-gray-900/80 backdrop-blur-md rounded-2xl p-2 border border-gray-700/50 shadow-lg min-w-[90px]">
                 <div class="text-[10px] text-gray-400 font-bold mb-1">TARGET</div>
                 <div id="nav-arrow-ui" class="w-10 h-10 flex items-center justify-center text-red-500 text-2xl transition-transform duration-75">
                     <i class="fa-solid fa-location-arrow"></i>
+                </div>
+                <!-- Early Turn Notice Label -->
+                <div id="hud-turn-notice" class="text-xs font-black text-red-400 bg-red-950/80 px-2 py-0.5 rounded-full border border-red-500/50 mt-1 hidden animate-pulse">
+                    ▶ 右折
                 </div>
             </div>
 
@@ -246,7 +250,7 @@
             acceleration: 0.008,
             braking: 0.016,
             friction: 0.985,
-            steerSpeed: 0.045,
+            steerSpeed: 0.020, // Reduced from 0.045 for smoother turning
             soundEnabled: false
         };
 
@@ -945,7 +949,19 @@
             window.addEventListener('deviceorientation', (e) => {
                 if (!state.useGyro || e.gamma === null) return;
                 state.gyroGamma = e.gamma;
-                state.targetSteer = THREE.MathUtils.clamp(e.gamma / 30, -1, 1);
+
+                // Deadzone handling (ignore small device shakes under 3 degrees)
+                let gamma = e.gamma;
+                const deadzone = 3.0;
+                if (Math.abs(gamma) < deadzone) {
+                    gamma = 0;
+                } else {
+                    gamma = Math.sign(gamma) * (Math.abs(gamma) - deadzone);
+                }
+
+                // Smooth non-linear steering response (30 degrees tilt = 100% turn)
+                let normalized = THREE.MathUtils.clamp(gamma / 30, -1, 1);
+                state.targetSteer = Math.sign(normalized) * Math.pow(Math.abs(normalized), 1.4);
 
                 const pointer = document.getElementById('gyro-pointer');
                 if (pointer) {
@@ -1031,7 +1047,8 @@
         function updatePhysics() {
             if (!state.isPlaying || !scooterGroup) return;
 
-            state.currentSteer += (state.targetSteer - state.currentSteer) * 0.16;
+            // Smoother lerp for steering transition
+            state.currentSteer += (state.targetSteer - state.currentSteer) * 0.08;
 
             if (state.accelPressed) {
                 state.speed += state.acceleration;
@@ -1081,8 +1098,12 @@
 
             if (navArrowMesh) {
                 let navTarget = goalPoint;
-                if (nextPos.z > -50) navTarget = intersectionPoint;
-                else if (nextPos.z <= -50 && nextPos.x < 50) navTarget = turnBranchPoint;
+                // Switch target to right turn way in advance (70m before intersection)
+                if (nextPos.z > 10) {
+                    navTarget = intersectionPoint;
+                } else if (nextPos.z <= 10 && nextPos.x < 50) {
+                    navTarget = turnBranchPoint;
+                }
                 
                 navArrowMesh.position.copy(scooterGroup.position).add(new THREE.Vector3(0, 3.2, 0));
                 navArrowMesh.lookAt(navTarget.x, navArrowMesh.position.y, navTarget.z);
@@ -1263,12 +1284,32 @@
             const distEl = document.getElementById('dist-val');
             if (distEl) distEl.innerText = `${isNaN(dist) ? 0 : dist}m`;
 
-            const dx = goalPoint.x - scooterGroup.position.x;
-            const dz = goalPoint.z - scooterGroup.position.z;
+            // Early navigation arrow angle update
+            let currentTarget = intersectionPoint;
+            if (scooterGroup.position.z <= 10 && scooterGroup.position.x < 50) {
+                currentTarget = turnBranchPoint;
+            } else if (scooterGroup.position.x >= 50) {
+                currentTarget = goalPoint;
+            }
+
+            const dx = currentTarget.x - scooterGroup.position.x;
+            const dz = currentTarget.z - scooterGroup.position.z;
             let targetAngle = Math.atan2(dx, -dz) - (state.scooterRot || 0);
             const arrowEl = document.getElementById('nav-arrow-ui');
             if (arrowEl) {
                 arrowEl.style.transform = `rotate(${targetAngle * (180 / Math.PI)}deg)`;
+            }
+
+            // Early turn notice display on HUD
+            const turnNoticeEl = document.getElementById('hud-turn-notice');
+            if (turnNoticeEl) {
+                if (scooterGroup.position.z <= 30 && scooterGroup.position.z >= -65 && scooterGroup.position.x < 20) {
+                    turnNoticeEl.classList.remove('hidden');
+                    const distToTurn = Math.max(0, Math.floor(scooterGroup.position.z - (-60)));
+                    turnNoticeEl.innerText = `▶ 右折 (${distToTurn}m)`;
+                } else {
+                    turnNoticeEl.classList.add('hidden');
+                }
             }
         }
 
