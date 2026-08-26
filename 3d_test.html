@@ -87,7 +87,7 @@
             <div class="flex flex-col items-center bg-gray-900/85 backdrop-blur-md rounded-2xl p-2 border border-gray-700/60 shadow-lg min-w-[90px]">
                 <div class="text-[10px] text-gray-400 font-bold mb-0.5">TARGET</div>
                 <div id="nav-arrow-ui" class="w-8 h-8 flex items-center justify-center text-red-500 text-xl transition-transform duration-75">
-                    <i class="fa-solid fa-location-arrow"></i>
+                    <i class="fa-solid fa-arrow-up"></i>
                 </div>
                 <!-- Early Turn Notice Label -->
                 <div id="hud-turn-notice" class="text-[11px] font-black text-red-300 bg-red-900/90 px-2 py-0.5 rounded-full border border-red-500/80 mt-1 hidden animate-pulse">
@@ -114,17 +114,17 @@
         </div>
 
         <!-- Steering & Controls Section -->
-        <div class="flex flex-col items-center w-full pointer-events-auto">
+        <div class="flex flex-col items-center w-full pointer-events-auto pb-6 sm:pb-8">
             <!-- Steering Indicator -->
-            <div id="steering-indicator" class="mb-2 flex flex-col items-center opacity-80 pointer-events-none">
+            <div id="steering-indicator" class="mb-3 flex flex-col items-center opacity-80 pointer-events-none">
                 <div class="w-28 sm:w-36 h-2.5 bg-gray-900/90 rounded-full overflow-hidden border border-gray-600 relative shadow-inner">
                     <div id="gyro-pointer" class="w-3.5 h-full bg-amber-400 rounded-full absolute left-1/2 -translate-x-1/2 gyro-bar"></div>
                 </div>
                 <span class="text-[10px] text-gray-300 font-medium mt-1"><i class="fa-solid fa-mobile-screen-button"></i> スマホを左右に傾けて操縦</span>
             </div>
 
-            <!-- Bottom Controls (Brake Left, Accel Right) -->
-            <div class="flex justify-between items-center w-full px-2 pt-1 mb-1">
+            <!-- Bottom Controls (Raised position so buttons don't get cut off at bottom) -->
+            <div class="flex justify-between items-center w-full px-4 mb-2">
                 <!-- Brake Button (Bottom Left) -->
                 <div id="btn-brake" class="touch-btn btn-brake w-20 h-20 sm:w-24 sm:h-24 rounded-full flex flex-col items-center justify-center text-red-100 cursor-pointer active:scale-95 shadow-2xl select-none">
                     <i class="fa-solid fa-hand-paper text-xl sm:text-2xl mb-0.5"></i>
@@ -267,7 +267,7 @@
             acceleration: 0.008,
             braking: 0.016,
             friction: 0.985,
-            steerSpeed: 0.010, // Highly tuned mild steering speed
+            steerSpeed: 0.005, // Smooth & mild steering speed tuned for better control
             soundEnabled: false
         };
 
@@ -987,8 +987,9 @@
             ctx.fillStyle = '#0f172a';
             ctx.fillRect(0, 0, w, h);
 
-            const mapX = (x) => ((x + 40) / 130) * w;
-            const mapZ = (z) => ((130 - z) / 480) * h;
+            // Map orientation: Start Point at Bottom, Goal Point at Top (Driver Forward Perspective)
+            const mapX = (x) => ((x + 35) / 115) * w;
+            const mapZ = (z) => ((120 - z) / 460) * (h * 0.78) + (h * 0.11);
 
             // Roads Background
             ctx.strokeStyle = '#334155';
@@ -1000,9 +1001,9 @@
             ctx.lineTo(mapX(60), mapZ(-340));
             ctx.stroke();
 
-            // Route Line
+            // Route Line (Start at bottom green, move up -> turn right -> move up to top yellow goal)
             ctx.strokeStyle = '#ef4444';
-            ctx.lineWidth = 4;
+            ctx.lineWidth = 5;
             ctx.beginPath();
             ctx.moveTo(mapX(startPoint.x), mapZ(startPoint.z));
             ctx.lineTo(mapX(intersectionPoint.x), mapZ(intersectionPoint.z));
@@ -1010,69 +1011,107 @@
             ctx.lineTo(mapX(goalPoint.x), mapZ(goalPoint.z));
             ctx.stroke();
 
-            // Start Dot
+            // Start Dot (Green)
             ctx.fillStyle = '#10b981';
             ctx.beginPath();
-            ctx.arc(mapX(startPoint.x), mapZ(startPoint.z), 6, 0, Math.PI * 2);
+            ctx.arc(mapX(startPoint.x), mapZ(startPoint.z), 7, 0, Math.PI * 2);
             ctx.fill();
 
-            // Goal Dot
+            // Goal Dot (Yellow)
             ctx.fillStyle = '#f59e0b';
             ctx.beginPath();
-            ctx.arc(mapX(goalPoint.x), mapZ(goalPoint.z), 7, 0, Math.PI * 2);
+            ctx.arc(mapX(goalPoint.x), mapZ(goalPoint.z), 8, 0, Math.PI * 2);
             ctx.fill();
         }
 
         function initControls() {
+            // Show Map Button (Top Modal)
             const showMapBtn = document.getElementById('show-map-btn');
             if (showMapBtn) {
-                showMapBtn.onclick = () => {
+                showMapBtn.addEventListener('click', () => {
+                    initAudio();
                     document.getElementById('start-modal').classList.add('hidden');
                     document.getElementById('map-modal').classList.remove('hidden');
                     drawRouteMap();
-                };
+                });
             }
 
+            // Start Driving Button (Map Modal)
             const startDrivingBtn = document.getElementById('start-driving-btn');
             if (startDrivingBtn) {
-                startDrivingBtn.onclick = () => {
+                startDrivingBtn.addEventListener('click', () => {
                     document.getElementById('map-modal').classList.add('hidden');
-                    initAudio();
                     startGame();
-                };
+                });
             }
 
+            // Retry Button (Result Modal)
             const retryBtn = document.getElementById('retry-btn');
             if (retryBtn) {
-                retryBtn.onclick = () => {
-                    document.getElementById('result-modal').classList.add('hidden');
-                    document.getElementById('start-modal').classList.remove('hidden');
+                retryBtn.addEventListener('click', () => {
                     resetGame();
-                };
+                    document.getElementById('result-modal').classList.add('hidden');
+                    document.getElementById('map-modal').classList.remove('hidden');
+                    drawRouteMap();
+                });
             }
 
-            // Touch Accel & Brake Buttons
-            const btnAccel = document.getElementById('btn-accel');
-            if (btnAccel) {
-                const pressAccel = (e) => { e.preventDefault(); state.accelPressed = true; };
-                const releaseAccel = (e) => { e.preventDefault(); state.accelPressed = false; };
-                btnAccel.addEventListener('touchstart', pressAccel, { passive: false });
-                btnAccel.addEventListener('touchend', releaseAccel, { passive: false });
-                btnAccel.addEventListener('mousedown', pressAccel);
-                btnAccel.addEventListener('mouseup', releaseAccel);
+            // Accel Button Controls (Touch / Mouse)
+            const accelBtn = document.getElementById('btn-accel');
+            if (accelBtn) {
+                const startAccel = (e) => { e.preventDefault(); state.accelPressed = true; accelBtn.classList.add('active'); };
+                const stopAccel = (e) => { e.preventDefault(); state.accelPressed = false; accelBtn.classList.remove('active'); };
+                accelBtn.addEventListener('pointerdown', startAccel);
+                accelBtn.addEventListener('pointerup', stopAccel);
+                accelBtn.addEventListener('pointerleave', stopAccel);
+                accelBtn.addEventListener('pointercancel', stopAccel);
             }
 
-            const btnBrake = document.getElementById('btn-brake');
-            if (btnBrake) {
-                const pressBrake = (e) => { e.preventDefault(); state.brakePressed = true; };
-                const releaseBrake = (e) => { e.preventDefault(); state.brakePressed = false; };
-                btnBrake.addEventListener('touchstart', pressBrake, { passive: false });
-                btnBrake.addEventListener('touchend', releaseBrake, { passive: false });
-                btnBrake.addEventListener('mousedown', pressBrake);
-                btnBrake.addEventListener('mouseup', releaseBrake);
+            // Brake Button Controls (Touch / Mouse)
+            const brakeBtn = document.getElementById('btn-brake');
+            if (brakeBtn) {
+                const startBrake = (e) => { e.preventDefault(); state.brakePressed = true; brakeBtn.classList.add('active'); };
+                const stopBrake = (e) => { e.preventDefault(); state.brakePressed = false; brakeBtn.classList.remove('active'); };
+                brakeBtn.addEventListener('pointerdown', startBrake);
+                brakeBtn.addEventListener('pointerup', stopBrake);
+                brakeBtn.addEventListener('pointerleave', stopBrake);
+                brakeBtn.addEventListener('pointercancel', stopBrake);
             }
 
-            // Gyroscope Handler (Inverted & Tuned Sensitivity)
+            // Manual Steering Buttons
+            const leftBtn = document.getElementById('btn-left');
+            const rightBtn = document.getElementById('btn-right');
+            if (leftBtn) {
+                const startLeft = (e) => { e.preventDefault(); state.leftPressed = true; };
+                const stopLeft = (e) => { e.preventDefault(); state.leftPressed = false; };
+                leftBtn.addEventListener('pointerdown', startLeft);
+                leftBtn.addEventListener('pointerup', stopLeft);
+                leftBtn.addEventListener('pointerleave', stopLeft);
+            }
+            if (rightBtn) {
+                const startRight = (e) => { e.preventDefault(); state.rightPressed = true; };
+                const stopRight = (e) => { e.preventDefault(); state.rightPressed = false; };
+                rightBtn.addEventListener('pointerdown', startRight);
+                rightBtn.addEventListener('pointerup', stopRight);
+                rightBtn.addEventListener('pointerleave', stopRight);
+            }
+
+            // Keyboard Controls (W/A/S/D or Arrow keys for PC play)
+            window.addEventListener('keydown', (e) => {
+                if (e.key === 'ArrowUp' || e.key === 'w' || e.key === 'W') state.accelPressed = true;
+                if (e.key === 'ArrowDown' || e.key === 's' || e.key === 'S') state.brakePressed = true;
+                if (e.key === 'ArrowLeft' || e.key === 'a' || e.key === 'A') state.leftPressed = true;
+                if (e.key === 'ArrowRight' || e.key === 'd' || e.key === 'D') state.rightPressed = true;
+            });
+
+            window.addEventListener('keyup', (e) => {
+                if (e.key === 'ArrowUp' || e.key === 'w' || e.key === 'W') state.accelPressed = false;
+                if (e.key === 'ArrowDown' || e.key === 's' || e.key === 'S') state.brakePressed = false;
+                if (e.key === 'ArrowLeft' || e.key === 'a' || e.key === 'A') state.leftPressed = false;
+                if (e.key === 'ArrowRight' || e.key === 'd' || e.key === 'D') state.rightPressed = false;
+            });
+
+            // Gyroscope Handler
             window.addEventListener('deviceorientation', (e) => {
                 if (!state.useGyro || e.gamma === null) return;
                 state.gyroGamma = e.gamma;
@@ -1087,12 +1126,11 @@
                     gamma = Math.sign(gamma) * (Math.abs(gamma) - deadzone);
                 }
 
-                // Invert or normal direction fix (device tilt left should turn left)
-                let directionSign = state.invertGyro ? -1 : 1;
-                let normalized = THREE.MathUtils.clamp((gamma / 28) * directionSign, -1, 1);
+                // Invert default orientation (Tilt right -> Turn Right)
+                let directionSign = state.invertGyro ? 1 : -1;
+                let normalized = THREE.MathUtils.clamp((gamma / 45) * directionSign, -1, 1);
                 
-                // Progressive curve for smooth steering precision
-                state.targetSteer = Math.sign(normalized) * Math.pow(Math.abs(normalized), 1.3);
+                state.targetSteer = Math.sign(normalized) * Math.pow(Math.abs(normalized), 1.2);
 
                 const pointer = document.getElementById('gyro-pointer');
                 if (pointer) {
@@ -1185,8 +1223,16 @@
         function updatePhysics() {
             if (!state.isPlaying || !scooterGroup) return;
 
+            if (state.leftPressed) {
+                state.targetSteer = 1.0;
+            } else if (state.rightPressed) {
+                state.targetSteer = -1.0;
+            } else if (!state.useGyro) {
+                state.targetSteer = 0;
+            }
+
             // Ultra-smooth lerp transition for steering
-            state.currentSteer += (state.targetSteer - state.currentSteer) * 0.06;
+            state.currentSteer += (state.targetSteer - state.currentSteer) * 0.04;
 
             if (state.accelPressed) {
                 state.speed += state.acceleration;
@@ -1431,6 +1477,7 @@
 
             const dx = currentTarget.x - scooterGroup.position.x;
             const dz = currentTarget.z - scooterGroup.position.z;
+            // Angle relative to vehicle's current orientation
             let targetAngle = Math.atan2(dx, -dz) - (state.scooterRot || 0);
             const arrowEl = document.getElementById('nav-arrow-ui');
             if (arrowEl) {
