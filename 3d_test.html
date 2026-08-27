@@ -150,23 +150,17 @@
                 <div class="text-[10px] text-gray-400 font-bold uppercase tracking-wider">TIME</div>
                 <div id="hud-timer" class="text-xl sm:text-2xl font-black text-amber-400 tracking-wider font-mono">00:00.00</div>
                 <div id="hud-distance" class="text-xs text-gray-300 mt-0.5">残り距離: <span class="font-bold text-white" id="dist-val">---m</span></div>
+                <div class="text-[10px] text-sky-400 font-bold mt-0.5">難易度 Lv.<span id="difficulty-val">1</span></div>
             </div>
 
-            <!-- Mini Navigation Arrow & Notice -->
+            <!-- NAVI Panel -->
             <div class="flex flex-col items-center gap-1">
-                <div class="flex flex-col items-center bg-gray-900/80 backdrop-blur-md rounded-2xl p-2 border border-gray-700/50 shadow-lg">
-                    <div class="text-[10px] text-gray-400 font-bold mb-0.5">TARGET</div>
-                    <div id="nav-arrow-ui" class="w-8 h-8 flex items-center justify-center text-red-500 text-xl transition-transform duration-75">
-                        <i class="fa-solid fa-location-arrow"></i>
+                <div class="flex flex-col items-center bg-gray-900/80 backdrop-blur-md rounded-2xl px-3 py-2 border border-gray-700/50 shadow-lg min-w-[74px]">
+                    <div class="text-[10px] text-gray-400 font-bold mb-0.5 tracking-wider">NAVI</div>
+                    <div id="nav-arrow-ui" class="w-9 h-9 flex items-center justify-center text-amber-400 text-2xl">
+                        <i class="fa-solid fa-arrow-up"></i>
                     </div>
-                </div>
-                <div id="hud-turn-notice" class="hidden bg-red-600 text-white text-xs font-black px-3 py-1 rounded-full shadow-lg border border-white/40 animate-pulse">
-                    ◀ 左折 (0m)
-                </div>
-                <!-- Traffic Light Status indicator on HUD -->
-                <div id="hud-signal-status" class="hidden bg-gray-900/90 text-xs font-bold px-3 py-1 rounded-full border border-gray-700 flex items-center gap-1.5 shadow-md">
-                    <span id="signal-dot" class="w-3 h-3 rounded-full bg-emerald-500 animate-ping"></span>
-                    <span id="signal-text" class="text-emerald-400 font-black">信号: 青</span>
+                    <div id="nav-dist-text" class="hidden text-[11px] font-black text-white mt-0.5"></div>
                 </div>
             </div>
 
@@ -178,8 +172,8 @@
         </div>
 
         <!-- Center Dialogue Box -->
-        <div id="dialogue-box" class="self-center bg-gray-900/90 backdrop-blur-md border-2 border-amber-500/80 rounded-2xl p-3.5 max-w-sm text-center shadow-2xl transition-all duration-300 opacity-0 transform translate-y-4 pointer-events-auto">
-            <div id="dialogue-speaker" class="text-xs font-bold text-amber-400 tracking-wider mb-0.5">👨‍🍳 ラーメン屋の大将</div>
+        <div id="dialogue-box" class="self-start ml-1 bg-gray-900/90 backdrop-blur-md border-2 border-amber-500/80 rounded-2xl p-3.5 max-w-[78%] sm:max-w-sm text-left shadow-2xl transition-all duration-300 opacity-0 transform translate-y-4 pointer-events-auto">
+            <div id="dialogue-speaker" class="text-xs font-bold text-amber-400 tracking-wider mb-0.5">👨‍🍳 飲食店の店長</div>
             <div id="dialogue-text" class="text-xs sm:text-sm font-semibold text-white leading-relaxed">「料理を大事に運んでくれ！」</div>
         </div>
 
@@ -307,7 +301,7 @@
                     <span id="res-time" class="text-lg sm:text-xl font-mono font-bold text-amber-300">00:00.00</span>
                 </div>
                 <div class="flex justify-between items-center text-sm">
-                    <span class="text-gray-400">失敗原因</span>
+                    <span class="text-gray-400" id="res-cause-label">失敗原因</span>
                     <span id="res-cause" class="text-xs sm:text-sm font-bold text-red-400">対向車との衝突</span>
                 </div>
                 <hr class="border-gray-700 my-1.5">
@@ -335,6 +329,7 @@ const state = {
     useGyro: true,
     invertGyro: false, // オフ = 標準（右に傾ける→右へ曲がる）。オンにすると左右反転。
     gyroReady: false,
+    gameFlowStarted: false,
     gyroGamma: 0,
     targetSteer: 0,
     currentSteer: 0,
@@ -347,8 +342,10 @@ const state = {
     maxSpeed: 0.52,
     acceleration: 0.008,
     braking: 0.016,
+    reverseAccel: 0.009,
+    maxReverseSpeed: 0.19,
     friction: 0.985,
-    steerSpeed: 0.005,
+    steerSpeed: 0.0115,
     soundEnabled: false,
     isFullscreen: false,
     // Traffic Light System (0: Green, 1: Yellow, 2: Red)
@@ -362,7 +359,6 @@ let scene, camera, renderer;
 let scooterGroup, frontWheel, rearWheel, handlebar, headlight, frontForkGroup, tailLight;
 let chefMesh;
 let customerMesh;
-let navArrowMesh;
 let signalLamps = []; // 信号機のライトメッシュ参照
 let clockDelta = new THREE.Clock();
 
@@ -371,12 +367,14 @@ let clockDelta = new THREE.Clock();
 // Intersection 1: (-4.5, 0, 30) -> Turn Left to (-80, 0, 30)
 // Intersection 2: (-80, 0, 30) -> Turn Right to (-80, 0, -220)
 // Goal: (-80, 0, -220)
-const startPoint = new THREE.Vector3(-4.5, 0, 150);
+const startPoint = new THREE.Vector3(-9.6, 0, 150);
 const intersection1Point = new THREE.Vector3(-4.5, 0, 30);
 const intersection2Point = new THREE.Vector3(-80, 0, 30);
 const goalPoint = new THREE.Vector3(-80, 0, -220);
 const customerPos = new THREE.Vector3(-88, 0, -220);
 
+let buildingBounds = []; // 衝突判定用の建物バウンディングボックス {minX,maxX,minZ,maxZ}
+let difficultyLevel = 0; // 配達を達成するたびに上がる難易度（ページ再読み込みでリセット）
 let dynamicObstacles = [];
 let parkedCars = [];
 let backgroundActors = []; // 当たり判定のない背景演出用の車・歩行者
@@ -485,6 +483,52 @@ function triggerCatMeow() {
 function triggerCrashSound() {
     if (!state.soundEnabled || !synthCrash) return;
     try { synthCrash.triggerAttackRelease("4n"); } catch(e){}
+}
+
+// ============================================================================
+// Voice Guidance (Web Speech API)
+// ============================================================================
+let selectedJaVoice = null;
+
+function pickJapaneseVoice() {
+    if (!('speechSynthesis' in window)) return;
+    const voices = speechSynthesis.getVoices();
+    if (!voices || voices.length === 0) return;
+    const jaVoices = voices.filter(v => v.lang && v.lang.toLowerCase().startsWith('ja'));
+    const femaleGuess = jaVoices.find(v => /female|woman|女性|Kyoko|Sakura|O-Ren|Ayumi/i.test(v.name));
+    selectedJaVoice = femaleGuess || jaVoices[0] || null;
+}
+
+if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+    pickJapaneseVoice();
+    speechSynthesis.onvoiceschanged = pickJapaneseVoice;
+}
+
+// テキストを読み上げ、話し終えたら onEnd を呼ぶ（未対応環境ではタイムアウトで代替）
+function speak(text, onEnd) {
+    if (!('speechSynthesis' in window)) {
+        if (onEnd) setTimeout(onEnd, 1000);
+        return;
+    }
+    try {
+        speechSynthesis.cancel();
+        const utter = new SpeechSynthesisUtterance(text);
+        utter.lang = 'ja-JP';
+        utter.rate = 1.02;
+        utter.pitch = 1.08;
+        if (selectedJaVoice) utter.voice = selectedJaVoice;
+
+        let finished = false;
+        const finish = () => { if (!finished) { finished = true; if (onEnd) onEnd(); } };
+        utter.onend = finish;
+        utter.onerror = finish;
+        speechSynthesis.speak(utter);
+
+        // onend が発火しない環境向けの保険タイマー
+        setTimeout(finish, Math.max(1800, text.length * 260));
+    } catch (e) {
+        if (onEnd) setTimeout(onEnd, 1000);
+    }
 }
 
 // ============================================================================
@@ -839,6 +883,76 @@ function createLicensePlateTexture(topText, numText) {
     return new THREE.CanvasTexture(canvas);
 }
 
+function createSpeedLimitTexture() {
+    const canvas = document.createElement('canvas');
+    canvas.width = 256;
+    canvas.height = 256;
+    const ctx = canvas.getContext('2d');
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, 256, 256);
+    ctx.beginPath();
+    ctx.arc(128, 128, 118, 0, Math.PI * 2);
+    ctx.fillStyle = '#ffffff';
+    ctx.fill();
+    ctx.lineWidth = 22;
+    ctx.strokeStyle = '#dc2626';
+    ctx.stroke();
+    ctx.fillStyle = '#111111';
+    ctx.font = '900 108px Arial, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('30', 128, 138);
+    return new THREE.CanvasTexture(canvas);
+}
+
+function createMopedPlateTexture() {
+    const canvas = document.createElement('canvas');
+    canvas.width = 256;
+    canvas.height = 96;
+    const ctx = canvas.getContext('2d');
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, 256, 96);
+    ctx.strokeStyle = '#111111';
+    ctx.lineWidth = 6;
+    ctx.strokeRect(6, 6, 244, 84);
+    ctx.fillStyle = '#111111';
+    ctx.font = 'bold 44px "Hiragino Kaku Gothic ProN", Meiryo, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('原付', 128, 50);
+    return new THREE.CanvasTexture(canvas);
+}
+
+function createSpeedLimitSign(x, z, rotY) {
+    const group = new THREE.Group();
+    group.position.set(x, 0, z);
+    group.rotation.y = rotY;
+
+    const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, 2.6, 8), MAT.poleMetal);
+    pole.position.y = 1.3;
+    pole.castShadow = true;
+    group.add(pole);
+
+    const signMat = new THREE.MeshStandardMaterial({ map: createSpeedLimitTexture(), roughness: 0.35 });
+    const sign = new THREE.Mesh(new THREE.CircleGeometry(0.55, 32), signMat);
+    sign.position.y = 2.55;
+    sign.castShadow = true;
+    group.add(sign);
+    const signBack = new THREE.Mesh(new THREE.CircleGeometry(0.55, 32), new THREE.MeshStandardMaterial({ color: 0xe5e7eb, roughness: 0.6 }));
+    signBack.position.y = 2.55;
+    signBack.rotation.y = Math.PI;
+    group.add(signBack);
+
+    const plateMat = new THREE.MeshStandardMaterial({ map: createMopedPlateTexture(), roughness: 0.4 });
+    const plate = new THREE.Mesh(new THREE.PlaneGeometry(0.62, 0.24), plateMat);
+    plate.position.y = 1.95;
+    plate.position.z = 0.01;
+    group.add(plate);
+
+    scene.add(group);
+    return group;
+}
+
 function createWoodTexture() {
     const canvas = document.createElement('canvas');
     canvas.width = 128;
@@ -1007,24 +1121,12 @@ function createPedestrianMesh(opts) {
     rightLegPivot.add(rightLeg);
     group.add(rightLegPivot);
 
-    // 荷物・小物のバリエーション
+    // 荷物のバリエーション（傘は遠目に見た際に紛らわしい形状になるため廃止）
     if (!isKid && Math.random() < 0.3) {
         const bag = new THREE.Mesh(new THREE.BoxGeometry(0.16 * scale, 0.2 * scale, 0.1 * scale),
             new THREE.MeshStandardMaterial({ color: 0x7c2d12, roughness: 0.7 }));
-        bag.position.set(0.32 * scale, 0.95 * scale, 0);
-        rightArmPivot.add(bag);
         bag.position.set(0.05 * scale, -0.4 * scale, 0);
-    }
-    if (!isKid && Math.random() < 0.18) {
-        const umbrella = new THREE.Group();
-        const handle = new THREE.Mesh(new THREE.CylinderGeometry(0.012 * scale, 0.012 * scale, 0.85 * scale, 6), MAT.darkMetal);
-        umbrella.add(handle);
-        const canopy = new THREE.Mesh(new THREE.ConeGeometry(0.26 * scale, 0.22 * scale, 8),
-            new THREE.MeshStandardMaterial({ color: [0x1d4ed8, 0x111827, 0x991b1b][Math.floor(Math.random() * 3)], roughness: 0.6 }));
-        canopy.position.y = 0.5 * scale;
-        umbrella.add(canopy);
-        umbrella.position.set(0.32 * scale, 1.1 * scale, 0);
-        group.add(umbrella);
+        rightArmPivot.add(bag);
     }
 
     group.userData.walk = {
@@ -1383,6 +1485,36 @@ function randomVehicleMesh(isParked) {
 // ============================================================================
 // Traffic Lights, Crosswalks, Road Markings
 // ============================================================================
+// 1組の信号ランプ(青黄赤)一式を生成して指定グループに追加する共通ヘルパー
+// 大きく・分かりやすく表示するため通常サイズより大きめに作る
+function addSignalLampSet(group, centerX, y, z, scale) {
+    const lampGeo = new THREE.CylinderGeometry(0.34 * scale, 0.34 * scale, 0.14 * scale, 20);
+    lampGeo.rotateX(Math.PI / 2);
+    const visorGeo = new THREE.CylinderGeometry(0.37 * scale, 0.37 * scale, 0.22 * scale, 20, 1, true, 0, Math.PI);
+    const gap = 0.92 * scale;
+
+    const lampDefs = [
+        { key: 'blue', x: centerX - gap, onHex: 0x10e070, offHex: 0x022c22 },
+        { key: 'yellow', x: centerX, onHex: 0xf5b301, offHex: 0x3a2a04 },
+        { key: 'red', x: centerX + gap, onHex: 0xff2f2f, offHex: 0x3a0808 }
+    ];
+    const lampRefs = {};
+    for (const def of lampDefs) {
+        const lampMat = new THREE.MeshStandardMaterial({ color: def.offHex, emissive: def.offHex, emissiveIntensity: 1.0, roughness: 0.25 });
+        const lamp = new THREE.Mesh(lampGeo, lampMat);
+        lamp.position.set(def.x, y, z);
+        group.add(lamp);
+        lampRefs[def.key] = lamp;
+
+        const visor = new THREE.Mesh(visorGeo, MAT.darkMetal);
+        visor.rotation.z = Math.PI / 2;
+        visor.rotation.y = Math.PI / 2;
+        visor.position.set(def.x, y + 0.2 * scale, z + 0.16 * scale);
+        group.add(visor);
+    }
+    return lampRefs;
+}
+
 function createTrafficLightMesh(x, z, rotY = 0, streetName) {
     const group = new THREE.Group();
     group.position.set(x, 0, z);
@@ -1390,59 +1522,47 @@ function createTrafficLightMesh(x, z, rotY = 0, streetName) {
 
     // 支柱
     const pole = new THREE.Mesh(
-        new THREE.CylinderGeometry(0.12, 0.14, 6.5, 12),
+        new THREE.CylinderGeometry(0.14, 0.17, 6.6, 12),
         MAT.poleMetal
     );
-    pole.position.y = 3.25;
+    pole.position.y = 3.3;
     pole.castShadow = true;
     group.add(pole);
 
-    // 信号機本体（横型）
+    // 信号機本体（横型・大型）
     const box = new THREE.Mesh(
-        new THREE.BoxGeometry(2.3, 0.85, 0.4),
+        new THREE.BoxGeometry(3.7, 1.3, 0.55),
         new THREE.MeshStandardMaterial({ color: 0x1a1f28, roughness: 0.4, metalness: 0.3 })
     );
-    box.position.set(0.6, 6.0, 0);
+    box.position.set(0.95, 6.1, 0);
     box.castShadow = true;
     group.add(box);
 
-    // 3色ランプ（青、黄、赤）+ サンバイザー庇
-    const lampGeo = new THREE.CylinderGeometry(0.22, 0.22, 0.1, 16);
-    lampGeo.rotateX(Math.PI / 2);
-    const visorGeo = new THREE.CylinderGeometry(0.24, 0.24, 0.16, 16, 1, true, 0, Math.PI);
+    // メインの信号（大きく・見やすく）
+    const mainLamps = addSignalLampSet(group, 0.95, 6.1, 0.24, 1.0);
+    signalLamps.push({ blue: mainLamps.blue, yellow: mainLamps.yellow, red: mainLamps.red });
 
-    const lampDefs = [
-        { key: 'blue', x: 0.0, onHex: 0x10e070, offHex: 0x022c22 },
-        { key: 'yellow', x: 0.6, onHex: 0xf5b301, offHex: 0x3a2a04 },
-        { key: 'red', x: 1.2, onHex: 0xff2f2f, offHex: 0x3a0808 }
-    ];
-    const lampRefs = {};
-    for (const def of lampDefs) {
-        const lampMat = new THREE.MeshStandardMaterial({ color: def.offHex, emissive: def.offHex, emissiveIntensity: 1.0, roughness: 0.3 });
-        const lamp = new THREE.Mesh(lampGeo, lampMat);
-        lamp.position.set(def.x, 6.0, 0.2);
-        group.add(lamp);
-        lampRefs[def.key] = lamp;
-
-        const visor = new THREE.Mesh(visorGeo, MAT.darkMetal);
-        visor.rotation.z = Math.PI / 2;
-        visor.rotation.y = Math.PI / 2;
-        visor.position.set(def.x, 6.13, 0.34);
-        group.add(visor);
-    }
-    signalLamps.push({ blue: lampRefs.blue, yellow: lampRefs.yellow, red: lampRefs.red });
+    // 近づいたときに見やすいよう、低めの位置にも同じ信号を複製表示（ミニ信号）
+    const nearBox = new THREE.Mesh(new THREE.BoxGeometry(2.1, 0.75, 0.32),
+        new THREE.MeshStandardMaterial({ color: 0x1a1f28, roughness: 0.4, metalness: 0.3 }));
+    nearBox.position.set(0.95, 3.55, 0);
+    group.add(nearBox);
+    const nearLamps = addSignalLampSet(group, 0.95, 3.55, 0.16, 0.56);
+    signalLamps[signalLamps.length - 1].blueNear = nearLamps.blue;
+    signalLamps[signalLamps.length - 1].yellowNear = nearLamps.yellow;
+    signalLamps[signalLamps.length - 1].redNear = nearLamps.red;
 
     // 歩行者用信号機（低い位置、赤/青ピクトグラム）
-    const pedBox = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.5, 0.16), new THREE.MeshStandardMaterial({ color: 0x1a1f28, roughness: 0.4 }));
-    pedBox.position.set(0, 2.5, 0.22);
+    const pedBox = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.6, 0.18), new THREE.MeshStandardMaterial({ color: 0x1a1f28, roughness: 0.4 }));
+    pedBox.position.set(0, 2.35, 0.22);
     group.add(pedBox);
     const pedWalkTex = createPedestrianSignalTexture(true);
     const pedStopTex = createPedestrianSignalTexture(false);
-    const pedWalk = new THREE.Mesh(new THREE.PlaneGeometry(0.42, 0.42), new THREE.MeshBasicMaterial({ map: pedWalkTex }));
-    pedWalk.position.set(0, 2.5, 0.31);
+    const pedWalk = new THREE.Mesh(new THREE.PlaneGeometry(0.5, 0.5), new THREE.MeshBasicMaterial({ map: pedWalkTex }));
+    pedWalk.position.set(0, 2.35, 0.32);
     group.add(pedWalk);
-    const pedStop = new THREE.Mesh(new THREE.PlaneGeometry(0.42, 0.42), new THREE.MeshBasicMaterial({ map: pedStopTex }));
-    pedStop.position.set(0, 2.5, 0.315);
+    const pedStop = new THREE.Mesh(new THREE.PlaneGeometry(0.5, 0.5), new THREE.MeshBasicMaterial({ map: pedStopTex }));
+    pedStop.position.set(0, 2.35, 0.325);
     pedStop.visible = false;
     group.add(pedStop);
     signalLamps[signalLamps.length - 1].pedWalk = pedWalk;
@@ -1451,8 +1571,8 @@ function createTrafficLightMesh(x, z, rotY = 0, streetName) {
     // 通り名プレート（雰囲気づくり・架空の名称）
     if (streetName) {
         const nameTex = createSignboardTexture(streetName, '#0f172a', '#f8fafc');
-        const namePlate = new THREE.Mesh(new THREE.PlaneGeometry(0.9, 0.45), new THREE.MeshBasicMaterial({ map: nameTex }));
-        namePlate.position.set(-0.75, 5.35, 0.05);
+        const namePlate = new THREE.Mesh(new THREE.PlaneGeometry(1.1, 0.55), new THREE.MeshBasicMaterial({ map: nameTex }));
+        namePlate.position.set(-1.0, 5.35, 0.05);
         namePlate.rotation.y = Math.PI;
         group.add(namePlate);
     }
@@ -1674,19 +1794,7 @@ function createVendingMachine(x, z, rotY = 0, isRed = true) {
 
 function addRooftopProps(group, w, h, d) {
     const propRand = Math.random();
-    if (propRand < 0.4) {
-        const tank = new THREE.Mesh(new THREE.CylinderGeometry(0.9, 0.9, 1.4, 10),
-            new THREE.MeshStandardMaterial({ color: 0x94a3b8, roughness: 0.6, metalness: 0.3 }));
-        tank.position.set(w * 0.25, h + 0.7, d * 0.2);
-        tank.castShadow = true;
-        group.add(tank);
-        const legGeo = new THREE.CylinderGeometry(0.06, 0.06, 0.7, 6);
-        for (const sx of [-0.5, 0.5]) for (const sz of [-0.5, 0.5]) {
-            const leg = new THREE.Mesh(legGeo, MAT.darkMetal);
-            leg.position.set(w * 0.25 + sx * 0.6, h + 0.35, d * 0.2 + sz * 0.6);
-            group.add(leg);
-        }
-    } else if (propRand < 0.75) {
+    if (propRand < 0.75) {
         for (let i = 0; i < 3; i++) {
             const ac = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.4, 0.5),
                 new THREE.MeshStandardMaterial({ color: 0xcbd5e1, roughness: 0.5, metalness: 0.2 }));
@@ -1720,6 +1828,8 @@ function createBuilding(x, z, w, h, d, color) {
     if (overlapRoad1 || overlapRoad2 || overlapRoad3) {
         return; // 道路と重複する場合は生成をスキップ
     }
+
+    buildingBounds.push({ minX: x - w / 2, maxX: x + w / 2, minZ: z - d / 2, maxZ: z + d / 2 });
 
     const group = new THREE.Group();
     const useBrick = Math.random() < 0.22;
@@ -1768,6 +1878,11 @@ function createConvenienceStore(x, z, rotY = 0) {
     group.position.set(x, 0, z);
     group.rotation.y = rotY;
 
+    // rotYは90度単位のみ使用のため、AABBは向きに応じて幅と奥行きを入れ替える
+    const swapped = Math.abs(Math.round((rotY / (Math.PI / 2)) % 2)) === 1;
+    const bw = swapped ? 9 : 11, bd = swapped ? 11 : 9;
+    buildingBounds.push({ minX: x - bw / 2, maxX: x + bw / 2, minZ: z - bd / 2, maxZ: z + bd / 2 });
+
     const wall = new THREE.Mesh(new THREE.BoxGeometry(11, 3.6, 9), new THREE.MeshStandardMaterial({ color: 0xf1f5f9, roughness: 0.5 }));
     wall.position.y = 1.8;
     wall.castShadow = true;
@@ -1802,6 +1917,7 @@ function createConvenienceStore(x, z, rotY = 0) {
 }
 
 function createRamenShop(x, z) {
+    buildingBounds.push({ minX: x - 7, maxX: x + 7, minZ: z - 6, maxZ: z + 6 });
     const shopGroup = new THREE.Group();
     const wallMat = new THREE.MeshStandardMaterial({ map: createWoodTexture(), roughness: 0.85 });
     wallMat.map.repeat.set(3, 1.5);
@@ -1837,6 +1953,7 @@ function createRamenShop(x, z) {
 }
 
 function createSuburbanHouse(x, z) {
+    buildingBounds.push({ minX: x - 6, maxX: x + 6, minZ: z - 6, maxZ: z + 6 });
     const houseGroup = new THREE.Group();
     const wall = new THREE.Mesh(new THREE.BoxGeometry(12, 6, 12), new THREE.MeshStandardMaterial({ color: 0xfef3c7, roughness: 0.7 }));
     wall.position.set(x, 3, z);
@@ -1892,12 +2009,32 @@ function createSuburbanHouse(x, z) {
     scene.add(houseGroup);
 }
 
+// 2点間を結ぶ円柱（手足など）を正しい向き・長さで生成する汎用ヘルパー
+function createLimbBetween(startVec, endVec, radius, mat) {
+    const dir = new THREE.Vector3().subVectors(endVec, startVec);
+    const len = dir.length();
+    const geo = new THREE.CylinderGeometry(radius, radius * 0.88, Math.max(len, 0.01), 8);
+    const mesh = new THREE.Mesh(geo, mat);
+    const mid = new THREE.Vector3().addVectors(startVec, endVec).multiplyScalar(0.5);
+    mesh.position.copy(mid);
+    const up = new THREE.Vector3(0, 1, 0);
+    const dirNorm = dir.clone().normalize();
+    mesh.quaternion.setFromUnitVectors(up, dirNorm);
+    mesh.castShadow = true;
+    return mesh;
+}
+
 // ============================================================================
 // Delivery Scooter (Hero Asset)
 // ============================================================================
 function buildScooter() {
     scooterGroup = new THREE.Group();
     scooterGroup.position.copy(startPoint);
+
+    // 内部の見た目パーツは scooterVisual にまとめ、180度回転して取り付ける。
+    // (パーツ自体のローカル座標は変更せず、進行方向(-Z)を正しく向かせるための補正)
+    const scooterVisual = new THREE.Group();
+    scooterVisual.rotation.y = Math.PI;
 
     const bodyMat = new THREE.MeshStandardMaterial({ color: 0x0f6b4f, roughness: 0.22, metalness: 0.35 });
     const whiteMat = new THREE.MeshStandardMaterial({ color: 0xf8fafc, roughness: 0.25, metalness: 0.15 });
@@ -1908,24 +2045,24 @@ function buildScooter() {
     const lowerBody = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.28, 1.5), bodyMat);
     lowerBody.position.set(0, 0.42, -0.1);
     lowerBody.castShadow = true;
-    scooterGroup.add(lowerBody);
+    scooterVisual.add(lowerBody);
 
     // --- フロントカウル（レッグシールド） ---
     const cowl = new THREE.Mesh(new THREE.BoxGeometry(0.62, 0.85, 0.22), bodyMat);
     cowl.position.set(0, 0.85, 0.68);
     cowl.rotation.x = -0.12;
     cowl.castShadow = true;
-    scooterGroup.add(cowl);
+    scooterVisual.add(cowl);
     const cowlAccent = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.3, 0.06), whiteMat);
     cowlAccent.position.set(0, 0.62, 0.78);
-    scooterGroup.add(cowlAccent);
+    scooterVisual.add(cowlAccent);
 
     // --- ウインドスクリーン ---
     const screen = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.34, 0.03),
         new THREE.MeshStandardMaterial({ color: 0xbcd9ee, roughness: 0.1, metalness: 0.2, transparent: true, opacity: 0.4 }));
     screen.position.set(0, 1.28, 0.76);
     screen.rotation.x = -0.35;
-    scooterGroup.add(screen);
+    scooterVisual.add(screen);
 
     // --- シート ---
     const seat = new THREE.Mesh(new THREE.CylinderGeometry(0.27, 0.24, 0.85, 12), seatMat);
@@ -1933,22 +2070,22 @@ function buildScooter() {
     seat.scale.set(1, 0.62, 1);
     seat.position.set(0, 0.78, -0.55);
     seat.castShadow = true;
-    scooterGroup.add(seat);
+    scooterVisual.add(seat);
 
     // --- ヘッドライト（カウル上部） ---
     const headlightHousing = new THREE.Mesh(new THREE.CylinderGeometry(0.15, 0.15, 0.12, 16), MAT.darkMetal);
     headlightHousing.rotation.x = Math.PI / 2;
     headlightHousing.position.set(0, 1.02, 0.79);
-    scooterGroup.add(headlightHousing);
+    scooterVisual.add(headlightHousing);
     const headlightLens = new THREE.Mesh(new THREE.CircleGeometry(0.13, 16), MAT.headlightGlow);
     headlightLens.position.set(0, 1.02, 0.855);
-    scooterGroup.add(headlightLens);
+    scooterVisual.add(headlightLens);
 
     headlight = new THREE.SpotLight(0xfffbe1, 3.5, 30, Math.PI / 5, 0.4);
     headlight.position.set(0, 1.02, 0.9);
     headlight.target.position.set(0, 0, 15);
-    scooterGroup.add(headlight);
-    scooterGroup.add(headlight.target);
+    scooterVisual.add(headlight);
+    scooterVisual.add(headlight.target);
 
     // --- ウインカー（前） ---
     const frontSignalGeo = new THREE.SphereGeometry(0.05, 8, 6);
@@ -1956,7 +2093,7 @@ function buildScooter() {
     for (const sx of [-1, 1]) {
         const sig = new THREE.Mesh(frontSignalGeo, MAT.turnSignalGlow.clone());
         sig.position.set(sx * 0.32, 0.98, 0.72);
-        scooterGroup.add(sig);
+        scooterVisual.add(sig);
         frontSignals.push(sig);
     }
 
@@ -1983,12 +2120,12 @@ function buildScooter() {
         mirrorHead.position.set(sx * 0.4, 0.27, -0.04);
         handlebar.add(mirrorHead);
     }
-    scooterGroup.add(handlebar);
+    scooterVisual.add(handlebar);
 
     // --- フロントフォーク（操舵で実際に向きが変わるグループ） ---
     frontForkGroup = new THREE.Group();
     frontForkGroup.position.set(0, 0, 0.82);
-    scooterGroup.add(frontForkGroup);
+    scooterVisual.add(frontForkGroup);
 
     const forkTubeGeo = new THREE.CylinderGeometry(0.035, 0.035, 0.72, 8);
     for (const sx of [-1, 1]) {
@@ -2013,20 +2150,20 @@ function buildScooter() {
     // --- リアホイール／リアフェンダー ---
     rearWheel = createWheelAssembly(wheelR, wheelW, false);
     rearWheel.position.set(0, wheelR, -0.78);
-    scooterGroup.add(rearWheel);
+    scooterVisual.add(rearWheel);
 
     const rearFenderGeo = new THREE.CylinderGeometry(wheelR + 0.1, wheelR + 0.1, wheelW + 0.1, 16, 1, true, Math.PI * 0.1, Math.PI * 0.8);
     rearFenderGeo.rotateZ(Math.PI / 2);
     const rearFender = new THREE.Mesh(rearFenderGeo, bodyMat);
     rearFender.position.set(0, wheelR, -0.78);
-    scooterGroup.add(rearFender);
+    scooterVisual.add(rearFender);
 
     // スイングアーム
     const swingArmGeo = new THREE.BoxGeometry(0.08, 0.08, 0.85);
     for (const sx of [-1, 1]) {
         const arm = new THREE.Mesh(swingArmGeo, MAT.darkMetal);
         arm.position.set(sx * 0.14, 0.4, -0.42);
-        scooterGroup.add(arm);
+        scooterVisual.add(arm);
     }
 
     // --- マフラー ---
@@ -2035,21 +2172,21 @@ function buildScooter() {
     exhaustPipe.rotation.y = 0.06;
     exhaustPipe.position.set(0.3, 0.32, -0.55);
     exhaustPipe.castShadow = true;
-    scooterGroup.add(exhaustPipe);
+    scooterVisual.add(exhaustPipe);
     const exhaustTip = new THREE.Mesh(new THREE.CylinderGeometry(0.075, 0.075, 0.1, 10), MAT.darkMetal);
     exhaustTip.rotation.z = Math.PI / 2;
     exhaustTip.position.set(0.68, 0.32, -0.53);
-    scooterGroup.add(exhaustTip);
+    scooterVisual.add(exhaustTip);
 
     // --- テールランプ／リアウインカー ---
     tailLight = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.16, 0.05), MAT.tailGlow.clone());
     tailLight.position.set(0, 0.98, -0.98);
-    scooterGroup.add(tailLight);
+    scooterVisual.add(tailLight);
     const rearSignals = [];
     for (const sx of [-1, 1]) {
         const sig = new THREE.Mesh(frontSignalGeo, MAT.turnSignalGlow.clone());
         sig.position.set(sx * 0.28, 0.95, -0.95);
-        scooterGroup.add(sig);
+        scooterVisual.add(sig);
         rearSignals.push(sig);
     }
     scooterGroup.userData.turnSignals = frontSignals.concat(rearSignals);
@@ -2059,7 +2196,7 @@ function buildScooter() {
     kickstand.position.set(0.22, 0.18, -0.5);
     kickstand.rotation.z = 0.55;
     kickstand.rotation.x = 0.15;
-    scooterGroup.add(kickstand);
+    scooterVisual.add(kickstand);
 
     // --- 出前ボックス（後部） ---
     const boxTex = createSignboardTexture('出前', '#0f6b4f', '#ffffff');
@@ -2078,18 +2215,59 @@ function buildScooter() {
     logo.position.set(0, 0, -0.29);
     logo.rotation.y = Math.PI;
     box.add(logo);
-    scooterGroup.add(box);
+    scooterVisual.add(box);
     const boxPost = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 0.5, 6), MAT.darkMetal);
     boxPost.position.set(0, 1.0, -0.98);
-    scooterGroup.add(boxPost);
+    scooterVisual.add(boxPost);
 
     // --- ナンバープレート ---
     const plateTex = createLicensePlateTexture('出前', '1-08');
     const plate = new THREE.Mesh(new THREE.PlaneGeometry(0.22, 0.14), new THREE.MeshBasicMaterial({ map: plateTex }));
     plate.position.set(0, 0.55, -0.15);
     plate.rotation.x = -0.25;
-    scooterGroup.add(plate);
+    scooterVisual.add(plate);
 
+    // --- ライダー（配達員） ---
+    const riderMat = new THREE.MeshStandardMaterial({ color: 0x1f2937, roughness: 0.55 });
+    const vestMat = new THREE.MeshStandardMaterial({ color: 0xf59e0b, roughness: 0.6 });
+    const skinMat = MAT.skin;
+    const helmetMat = new THREE.MeshStandardMaterial({ color: 0xf8fafc, roughness: 0.25, metalness: 0.15 });
+
+    const hip = new THREE.Vector3(0, 0.97, -0.42);
+    const shoulder = new THREE.Vector3(0, 1.40, -0.16);
+    const head = new THREE.Vector3(0, 1.63, -0.10);
+    const leftGrip = new THREE.Vector3(0.36, 1.28, 0.62);
+    const rightGrip = new THREE.Vector3(-0.36, 1.28, 0.62);
+    const leftKnee = new THREE.Vector3(0.19, 0.58, 0.08);
+    const rightKnee = new THREE.Vector3(-0.19, 0.58, 0.08);
+    const leftFoot = new THREE.Vector3(0.20, 0.30, 0.30);
+    const rightFoot = new THREE.Vector3(-0.20, 0.30, 0.30);
+
+    const torso = createLimbBetween(hip, shoulder, 0.15, vestMat);
+    scooterVisual.add(torso);
+
+    const headMesh = new THREE.Mesh(new THREE.SphereGeometry(0.145, 12, 10), skinMat);
+    headMesh.position.copy(head);
+    scooterVisual.add(headMesh);
+    const helmet = new THREE.Mesh(new THREE.SphereGeometry(0.165, 14, 10, 0, Math.PI * 2, 0, Math.PI * 0.62), helmetMat);
+    helmet.position.copy(head).add(new THREE.Vector3(0, 0.02, 0));
+    scooterVisual.add(helmet);
+    const visor = new THREE.Mesh(new THREE.SphereGeometry(0.15, 12, 8, 0, Math.PI * 2, Math.PI * 0.25, Math.PI * 0.28),
+        new THREE.MeshStandardMaterial({ color: 0x0f172a, roughness: 0.1, metalness: 0.5 }));
+    visor.position.copy(head);
+    scooterVisual.add(visor);
+
+    scooterVisual.add(createLimbBetween(shoulder.clone().add(new THREE.Vector3(0.13, -0.02, 0)), leftGrip, 0.06, riderMat));
+    scooterVisual.add(createLimbBetween(shoulder.clone().add(new THREE.Vector3(-0.13, -0.02, 0)), rightGrip, 0.06, riderMat));
+
+    scooterVisual.add(createLimbBetween(hip.clone().add(new THREE.Vector3(0.11, 0, 0)), leftKnee, 0.09, riderMat));
+    scooterVisual.add(createLimbBetween(leftKnee, leftFoot, 0.075, riderMat));
+    scooterVisual.add(createLimbBetween(hip.clone().add(new THREE.Vector3(-0.11, 0, 0)), rightKnee, 0.09, riderMat));
+    scooterVisual.add(createLimbBetween(rightKnee, rightFoot, 0.075, riderMat));
+
+    scooterVisual.traverse((o) => { if (o.isMesh) o.castShadow = true; });
+
+    scooterGroup.add(scooterVisual);
     scene.add(scooterGroup);
 }
 
@@ -2144,7 +2322,6 @@ function initScene() {
 
     buildJapaneseCity();
     buildScooter();
-    buildNavigationArrow();
     buildObstacles();
     buildBackgroundLife();
 
@@ -2211,14 +2388,10 @@ function buildJapaneseCity() {
     createCrosswalk(-4.5, 42, 16, 6, true);
     createCrosswalk(-14.5, 30, 6, 16, false);
     createTrafficLightMesh(5.0, 42, Math.PI / 2, '共栄通り');
-    createStopLine(-4.5, 44.2, 13, true);
 
     createCrosswalk(-70, 30, 6, 16, false);
     createCrosswalk(-80, 18, 16, 6, true);
     createTrafficLightMesh(-70.5, 42, 0, '弥生坂');
-    createStopLine(-80, 20.2, 13, true);
-    createGuardrailSegment(-73.2, 24, 9, 0);
-    createGuardrailSegment(3.2, 24, 9, Math.PI / 2);
 
     // 歩道・縁石（道路1・道路3沿い、メインの走行区間）
     createSidewalkStrip(-14.0, 116, 3.0, 195, true);
@@ -2251,6 +2424,9 @@ function buildJapaneseCity() {
 
     // ラーメン屋 (スタート地点)
     createRamenShop(-22, 150);
+
+    // 原付30キロ制限の標識（スタート直後の視界に入る位置）
+    createSpeedLimitSign(1.2, 138, -Math.PI / 2);
 
     // コンビニ（道路1沿い）
     createConvenienceStore(20, 96, -Math.PI / 2);
@@ -2288,14 +2464,6 @@ function buildJapaneseCity() {
     chefMesh.position.set(-11.0, 0, 152);
     chefMesh.rotation.y = Math.PI / 3;
     scene.add(chefMesh);
-}
-
-function buildNavigationArrow() {
-    const arrowGeo = new THREE.ConeGeometry(0.4, 1.2, 8);
-    arrowGeo.rotateX(Math.PI / 2);
-    const arrowMat = new THREE.MeshBasicMaterial({ color: 0xef4444, wireframe: false });
-    navArrowMesh = new THREE.Mesh(arrowGeo, arrowMat);
-    scene.add(navArrowMesh);
 }
 
 function buildObstacles() {
@@ -2339,7 +2507,7 @@ function buildObstacles() {
         dynamicObstacles.push({
             type: 'car',
             mesh: carGroup,
-            speed: 0.22 + Math.random() * 0.06,
+            speed: (0.22 + Math.random() * 0.06) * (1 + difficultyLevel * 0.09),
             direction: new THREE.Vector3(0, 0, 1),
             radius: 1.8,
             warned: false
@@ -2368,8 +2536,8 @@ function buildObstacles() {
         type: 'kid',
         mesh: kid1,
         triggered: false,
-        triggerDist: 58,
-        speed: 0.20,
+        triggerDist: Math.max(38, 58 - difficultyLevel * 3),
+        speed: 0.115,
         direction: new THREE.Vector3(1, 0, 0),
         radius: 0.8
     });
@@ -2382,8 +2550,8 @@ function buildObstacles() {
         type: 'dog',
         mesh: dog,
         triggered: false,
-        triggerDist: 40,
-        speed: 0.13,
+        triggerDist: Math.max(26, 40 - difficultyLevel * 2),
+        speed: 0.075,
         direction: new THREE.Vector3(1, 0, 0),
         radius: 0.7
     });
@@ -2392,6 +2560,27 @@ function buildObstacles() {
 // 当たり判定を持たない背景演出（歩道上の通行人・沿道の駐車車両）
 function buildBackgroundLife() {
     backgroundActors = [];
+
+    // 横断歩道を実際に渡る歩行者（信号のない演出用・当たり判定なし）
+    const crosswalkDefs = [
+        { z: 42, xRange: [-12, 3], count: 2 },
+        { z: 18, xRange: [-87, -73], count: 2 }
+    ];
+    for (const def of crosswalkDefs) {
+        for (let i = 0; i < def.count; i++) {
+            const ped = createPedestrianMesh({});
+            const x = def.xRange[0] + Math.random() * (def.xRange[1] - def.xRange[0]);
+            ped.position.set(x, 0, def.z + (Math.random() - 0.5) * 1.6);
+            const dir = Math.random() < 0.5 ? 1 : -1;
+            ped.rotation.y = dir > 0 ? -Math.PI / 2 : Math.PI / 2;
+            scene.add(ped);
+            backgroundActors.push({
+                mesh: ped, axis: 'x', dir,
+                min: def.xRange[0], max: def.xRange[1],
+                speed: 0.03 + Math.random() * 0.015
+            });
+        }
+    }
 
     const strollDefs = [
         { x: -14.2, zRange: [72, 178], count: 3 },
@@ -2414,19 +2603,6 @@ function buildBackgroundLife() {
                 speed: 0.025 + Math.random() * 0.02
             });
         }
-    }
-
-    // 沿道の装飾駐車車両（歩道の外側・建物寄りの安全な位置のみ）
-    const decorCars = [
-        { x: -18.2, z: 140, rot: Math.PI / 2, type: 'sedan', color: 0x991b1b },
-        { x: 9.0, z: 90, rot: -Math.PI / 2, type: 'sedan', color: 0xf8fafc },
-        { x: -73.6, z: -150, rot: Math.PI / 2, type: 'van', color: 0x334155 }
-    ];
-    for (const c of decorCars) {
-        const car = createVehicleMesh(c.type, c.color, {});
-        car.position.set(c.x, 0, c.z);
-        car.rotation.y = c.rot;
-        scene.add(car);
     }
 
     // 自転車（簡易・コンビニ前）
@@ -2454,45 +2630,35 @@ function updateTrafficSignals() {
     state.signalTimer += 0.016;
     if (state.signalTimer > 11) state.signalTimer = 0;
 
-    if (state.signalTimer < 5) {
-        state.signalState = 0; // 青 (0~5s)
-    } else if (state.signalTimer < 7) {
-        state.signalState = 1; // 黄 (5~7s)
+    // 難易度が上がるほど青信号の時間が短くなる（最低2.5秒は確保）
+    const greenEnd = Math.max(2.5, 5 - difficultyLevel * 0.35);
+    if (state.signalTimer < greenEnd) {
+        state.signalState = 0; // 青
+    } else if (state.signalTimer < greenEnd + 2) {
+        state.signalState = 1; // 黄
     } else {
-        state.signalState = 2; // 赤 (7~11s)
+        state.signalState = 2; // 赤
     }
 
     for (let lamp of signalLamps) {
         const blueHex = state.signalState === 0 ? 0x10e070 : 0x022c22;
         const yellowHex = state.signalState === 1 ? 0xf5b301 : 0x3a2a04;
         const redHex = state.signalState === 2 ? 0xff2f2f : 0x3a0808;
-        lamp.blue.material.color.setHex(blueHex);
-        lamp.blue.material.emissive.setHex(blueHex);
-        lamp.yellow.material.color.setHex(yellowHex);
-        lamp.yellow.material.emissive.setHex(yellowHex);
-        lamp.red.material.color.setHex(redHex);
-        lamp.red.material.emissive.setHex(redHex);
+        const setLamp = (mesh, hex, isOn) => {
+            if (!mesh) return;
+            mesh.material.color.setHex(hex);
+            mesh.material.emissive.setHex(hex);
+            mesh.material.emissiveIntensity = isOn ? 2.2 : 0.6;
+        };
+        setLamp(lamp.blue, blueHex, state.signalState === 0);
+        setLamp(lamp.yellow, yellowHex, state.signalState === 1);
+        setLamp(lamp.red, redHex, state.signalState === 2);
+        setLamp(lamp.blueNear, blueHex, state.signalState === 0);
+        setLamp(lamp.yellowNear, yellowHex, state.signalState === 1);
+        setLamp(lamp.redNear, redHex, state.signalState === 2);
         if (lamp.pedWalk && lamp.pedStop) {
             lamp.pedWalk.visible = state.signalState === 2;
             lamp.pedStop.visible = state.signalState !== 2;
-        }
-    }
-
-    const sigDot = document.getElementById('signal-dot');
-    const sigText = document.getElementById('signal-text');
-    if (sigDot && sigText) {
-        if (state.signalState === 0) {
-            sigDot.className = "w-3 h-3 rounded-full bg-emerald-500 animate-ping";
-            sigText.className = "text-emerald-400 font-black";
-            sigText.innerText = "信号: 青";
-        } else if (state.signalState === 1) {
-            sigDot.className = "w-3 h-3 rounded-full bg-amber-500 animate-pulse";
-            sigText.className = "text-amber-400 font-black";
-            sigText.innerText = "信号: 黄";
-        } else {
-            sigDot.className = "w-3 h-3 rounded-full bg-red-500 animate-bounce";
-            sigText.className = "text-red-400 font-black";
-            sigText.innerText = "信号: 赤";
         }
     }
 
@@ -2586,9 +2752,7 @@ function requestFullscreenSafe() {
             if (p && typeof p.catch === 'function') p.catch(() => {});
         } catch (e) { /* iOS Safari等、未対応環境では無視 */ }
     }
-    if (screen.orientation && screen.orientation.lock) {
-        screen.orientation.lock('landscape').catch(() => {});
-    }
+    // 縦向き専用ゲームのため、画面の向きは固定しない（横向きロックは行わない）
     setTimeout(updateFullscreenIcon, 250);
 }
 
@@ -2657,6 +2821,25 @@ function initControls() {
             if (startModal) startModal.classList.add('hidden');
             if (mapModal) { mapModal.classList.remove('hidden'); mapModal.classList.add('flex'); }
             drawRouteMap();
+            requestFullscreenSafe();
+
+            // 音声案内 → 話し終えたら自動でゲーム画面へ遷移
+            speak("実際の交通規制に従って走行してください。", async () => {
+                if (state.gameFlowStarted) return;
+                state.gameFlowStarted = true;
+                if (state.useGyro) {
+                    const granted = await requestGyroPermissionIfNeeded();
+                    if (!granted) {
+                        state.useGyro = false;
+                        showManualSteerFallback();
+                    }
+                }
+                if (mapModal) mapModal.classList.add('hidden');
+                startGame();
+                setTimeout(() => {
+                    if (state.useGyro && !state.gyroReady) showManualSteerFallback();
+                }, 1500);
+            });
         });
     }
 
@@ -2678,6 +2861,9 @@ function initControls() {
 
     if (startDrivingBtn) {
         startDrivingBtn.addEventListener('click', async () => {
+            if (state.gameFlowStarted) return;
+            state.gameFlowStarted = true;
+            if ('speechSynthesis' in window) speechSynthesis.cancel();
             requestFullscreenSafe();
 
             if (state.useGyro) {
@@ -2803,7 +2989,6 @@ function startCountdown() {
     let count = 3;
     textEl.innerText = count;
     textEl.className = "text-8xl sm:text-9xl font-black text-amber-400 drop-shadow-[0_10px_20px_rgba(0,0,0,0.8)] tracking-wider";
-    showDialogue("👨‍🍳 ラーメン屋の大将", "「料理を大事に運んでくれ！」", 3000);
     triggerCountdownBeep(false);
 
     const interval = setInterval(() => {
@@ -2815,7 +3000,8 @@ function startCountdown() {
             textEl.innerText = "GO!";
             textEl.className = "text-8xl sm:text-9xl font-black text-emerald-400 drop-shadow-[0_10px_20px_rgba(0,0,0,0.8)] tracking-wider animate-bounce";
             triggerCountdownBeep(true);
-            showDialogue("👨‍🍳 ラーメン屋の大将", "「いってらっしゃい！」", 3000);
+            showDialogue("👨‍🍳 飲食店の店長", "「いってらっしゃい！」", 3000);
+            speak("いってらっしゃい！");
 
             state.isCountingDown = false;
             state.isPlaying = true;
@@ -2836,7 +3022,10 @@ function startGame() {
         hud.classList.remove('hidden');
         hud.classList.add('flex');
     }
-    startCountdown();
+    showDialogue("👨‍🍳 飲食店の店長", "「料理を大事に運んでくれ！」", 4000);
+    speak("料理を大事に運んでくれ。", () => {
+        startCountdown();
+    });
 }
 
 function resetGame() {
@@ -2892,16 +3081,23 @@ function updatePhysics() {
 
     state.currentSteer += (state.targetSteer - state.currentSteer) * 0.04;
 
-    // --- 修正: ブレーキはバック(後退)せず、0まで減速して停止する ---
+    // アクセル: 押している間だけ加速し、離すと摩擦で自然に減速する。
+    // ブレーキ: 前進中はまず0まで減速して停止し、そこからさらに押し続けるとゆっくりバックする
+    // （コースアウト判定ギリギリで前に進めない場面の立て直し用）。
     if (state.accelPressed) {
         state.speed += state.acceleration;
         if (state.speed > state.maxSpeed) state.speed = state.maxSpeed;
     } else if (state.brakePressed) {
-        state.speed -= state.braking;
-        if (state.speed < 0) state.speed = 0;
+        if (state.speed > 0) {
+            state.speed -= state.braking;
+            if (state.speed < 0) state.speed = 0;
+        } else {
+            state.speed -= state.reverseAccel;
+            if (state.speed < -state.maxReverseSpeed) state.speed = -state.maxReverseSpeed;
+        }
     } else {
         state.speed *= state.friction;
-        if (state.speed < 0.0004) state.speed = 0;
+        if (Math.abs(state.speed) < 0.0004) state.speed = 0;
     }
 
     if (Math.abs(state.speed) > 0.001) {
@@ -2915,8 +3111,9 @@ function updatePhysics() {
     if (frontForkGroup) frontForkGroup.rotation.y = state.currentSteer * 0.32;
 
     if (frontWheel && rearWheel) {
-        frontWheel.rotation.x += state.speed * 2;
-        rearWheel.rotation.x += state.speed * 2;
+        // 車体の見た目(scooterVisual)を180度回転させているため、ホイールの転がる向きは符号を反転させる
+        frontWheel.rotation.x -= state.speed * 2;
+        rearWheel.rotation.x -= state.speed * 2;
     }
 
     // ウインカー・ブレーキランプ演出
@@ -2943,19 +3140,29 @@ function updatePhysics() {
     const forward = new THREE.Vector3(0, 0, -1).applyAxisAngle(new THREE.Vector3(0, 1, 0), state.scooterRot);
     const nextPos = scooterGroup.position.clone().addScaledVector(forward, state.speed);
 
-    // コースアウト判定 (道路幅外の壁・歩道へ侵入)
+    // コースアウト判定: 歩道を走るのはOK。建物・道路の3Dモデルの範囲を
+    // 大きく超えて「街の外」まで行った場合のみ違反とする（歩道分の余裕を持たせて緩和）。
     let isOffRoad = false;
     if (nextPos.z > 38) {
-        if (Math.abs(nextPos.x - (-4.5)) > 7.5) isOffRoad = true;
+        if (nextPos.x < -34 || nextPos.x > 28) isOffRoad = true;
     } else if (nextPos.z <= 38 && nextPos.z >= 22) {
-        if (nextPos.x > 3.5 || nextPos.x < -87.5) isOffRoad = true;
+        if (nextPos.x > 14 || nextPos.x < -99) isOffRoad = true;
     } else if (nextPos.z < 22) {
-        if (Math.abs(nextPos.x - (-80)) > 7.5) isOffRoad = true;
+        if (nextPos.x < -114 || nextPos.x > -46) isOffRoad = true;
     }
+    if (nextPos.z > 216 || nextPos.z < -256) isOffRoad = true;
 
     if (isOffRoad) {
-        triggerGameOver("歩道・コース外へ脱線しました！", false);
+        triggerGameOver("街の3Dモデルの範囲外まで行ってしまいました！", false);
         return;
+    }
+
+    // 建物への衝突判定（歩道走行は可、建物本体にぶつかるとアウト）
+    for (const b of buildingBounds) {
+        if (nextPos.x > b.minX && nextPos.x < b.maxX && nextPos.z > b.minZ && nextPos.z < b.maxZ) {
+            triggerGameOver("建物に衝突しました！", true);
+            return;
+        }
     }
 
     // 赤信号無視チェック
@@ -2970,19 +3177,6 @@ function updatePhysics() {
     scooterGroup.position.copy(nextPos);
 
     playEngineSound(state.speed / state.maxSpeed);
-
-    // ナビゲーションターゲット切り替え
-    if (navArrowMesh) {
-        let navTarget = intersection1Point;
-        if (nextPos.z <= 40 && nextPos.x > -70) {
-            navTarget = intersection2Point;
-        } else if (nextPos.x <= -70) {
-            navTarget = goalPoint;
-        }
-
-        navArrowMesh.position.copy(scooterGroup.position).add(new THREE.Vector3(0, 3.2, 0));
-        navArrowMesh.lookAt(navTarget.x, navArrowMesh.position.y, navTarget.z);
-    }
 
     // 出前到着判定（お届け先の住人前）
     if (scooterGroup.position.distanceTo(goalPoint) < 7.0) {
@@ -3087,6 +3281,17 @@ function updateDynamicObstacles(playerPos) {
 // 当たり判定のない背景の通行人・演出の更新
 function updateBackgroundLife() {
     for (const actor of backgroundActors) {
+        if (actor.axis === 'x') {
+            actor.mesh.position.x += actor.dir * actor.speed;
+            if (actor.mesh.position.x > actor.max) {
+                actor.dir = -1;
+                actor.mesh.rotation.y = Math.PI / 2;
+            } else if (actor.mesh.position.x < actor.min) {
+                actor.dir = 1;
+                actor.mesh.rotation.y = -Math.PI / 2;
+            }
+            continue;
+        }
         actor.mesh.position.z += actor.dir * actor.speed;
         if (actor.mesh.position.z > actor.max) {
             actor.dir = -1;
@@ -3160,6 +3365,7 @@ function triggerGameOver(causeText, isCollision = true) {
         setText('result-sub', "交通ルール違反またはコース外に逸脱しました！");
     }
 
+    setText('res-cause-label', "失敗原因");
     setText('res-cause', causeText);
     setClass('res-cause', isCollision ? "text-xs sm:text-sm font-bold text-red-400" : "text-xs sm:text-sm font-bold text-amber-400");
     setText('res-rank', "GAME OVER");
@@ -3182,6 +3388,7 @@ function triggerGameOver(causeText, isCollision = true) {
 function finishDelivery() {
     state.isPlaying = false;
     playEngineSound(0);
+    difficultyLevel++;
 
     const elapsed = (performance.now() - state.startTime) / 1000;
     const mins = Math.floor(elapsed / 60).toString().padStart(2, '0');
@@ -3198,6 +3405,7 @@ function finishDelivery() {
     setText('result-title', "配達完了！");
     setClass('result-title', "text-2xl sm:text-3xl font-black text-amber-400 mb-1");
     setText('result-sub', "熱々の料理を最高の状態で届けられました！");
+    setText('res-cause-label', "配達結果");
     setText('res-cause', "無事故・パーフェクト配達！");
     setClass('res-cause', "text-xs sm:text-sm font-bold text-emerald-400");
     setText('res-time', `${mins}:${secs}`);
@@ -3224,6 +3432,8 @@ function updateHUD() {
     const secs = (elapsed % 60).toFixed(2).padStart(5, '0');
     const timerEl = document.getElementById('hud-timer');
     if (timerEl) timerEl.innerText = `${mins}:${secs}`;
+    const diffEl = document.getElementById('difficulty-val');
+    if (diffEl) diffEl.innerText = String(difficultyLevel + 1);
 
     const dist = Math.floor(scooterGroup.position.distanceTo(goalPoint));
     const distEl = document.getElementById('dist-val');
@@ -3236,33 +3446,33 @@ function updateHUD() {
         currentTarget = goalPoint;
     }
 
-    const dx = currentTarget.x - scooterGroup.position.x;
-    const dz = currentTarget.z - scooterGroup.position.z;
-    let targetAngle = Math.atan2(dx, -dz) - (state.scooterRot || 0);
+    // NAVI表示: 通常は直進(↑)、曲がり角に近づくと左右(←/→)＋残り距離に切り替える
     const arrowEl = document.getElementById('nav-arrow-ui');
+    const navDistEl = document.getElementById('nav-dist-text');
+    let navDirection = 'straight';
+    let navDistToTurn = null;
+
+    if (scooterGroup.position.z <= 90 && scooterGroup.position.z >= 35 && scooterGroup.position.x > -20) {
+        navDirection = 'left';
+        navDistToTurn = Math.max(0, Math.floor(scooterGroup.position.z - 30));
+    } else if (scooterGroup.position.x <= -20 && scooterGroup.position.x >= -75 && Math.abs(scooterGroup.position.z - 30) < 15) {
+        navDirection = 'right';
+        navDistToTurn = Math.max(0, Math.floor(-70 - scooterGroup.position.x));
+    }
+
     if (arrowEl) {
-        arrowEl.style.transform = `rotate(${targetAngle * (180 / Math.PI)}deg)`;
+        const iconClass = navDirection === 'left' ? 'fa-arrow-left' : (navDirection === 'right' ? 'fa-arrow-right' : 'fa-arrow-up');
+        const colorClass = navDirection === 'straight' ? 'text-amber-400' : 'text-red-500 animate-pulse';
+        arrowEl.innerHTML = `<i class="fa-solid ${iconClass}"></i>`;
+        arrowEl.className = `w-9 h-9 flex items-center justify-center text-2xl ${colorClass}`;
     }
-
-    const turnNoticeEl = document.getElementById('hud-turn-notice');
-    if (turnNoticeEl) {
-        if (scooterGroup.position.z <= 90 && scooterGroup.position.z >= 35 && scooterGroup.position.x > -20) {
-            turnNoticeEl.classList.remove('hidden');
-            const distToTurn = Math.max(0, Math.floor(scooterGroup.position.z - 30));
-            turnNoticeEl.innerText = `◀ 左折 (${distToTurn}m)`;
-        } else if (scooterGroup.position.x <= -20 && scooterGroup.position.x >= -75 && Math.abs(scooterGroup.position.z - 30) < 15) {
-            turnNoticeEl.classList.remove('hidden');
-            const distToTurn = Math.max(0, Math.floor(-70 - scooterGroup.position.x));
-            turnNoticeEl.innerText = `▶ 右折 (${distToTurn}m)`;
+    if (navDistEl) {
+        if (navDistToTurn !== null) {
+            navDistEl.classList.remove('hidden');
+            navDistEl.innerText = `残り${navDistToTurn}m`;
         } else {
-            turnNoticeEl.classList.add('hidden');
+            navDistEl.classList.add('hidden');
         }
-    }
-
-    const sigStatusEl = document.getElementById('hud-signal-status');
-    if (sigStatusEl) {
-        const nearSignal = (scooterGroup.position.z > 15 && scooterGroup.position.z < 55) || (scooterGroup.position.x < -55 && scooterGroup.position.x > -95 && scooterGroup.position.z < 55);
-        sigStatusEl.classList.toggle('hidden', !nearSignal);
     }
 
     // 住人の頭上「💬 ここまで持ってきて！」吹き出しをスクリーンスペースに投影
