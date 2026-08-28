@@ -1,0 +1,593 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>絵文字トリプルマッチ - 山積みパズル</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Zen+Maru+Gothic:wght@500;700;900&display=swap');
+
+        body {
+            font-family: 'Zen Maru Gothic', sans-serif;
+            touch-action: manipulation;
+            user-select: none;
+            -webkit-user-select: none;
+            background: #2A0944;
+            background: radial-gradient(circle, #3b155e 0%, #1e0533 100%);
+            color: #ffffff;
+            overflow: hidden;
+        }
+
+        /* 麻雀牌スタイルの3D立体パネル */
+        .tile {
+            position: absolute;
+            width: 48px;
+            height: 56px;
+            background: linear-gradient(145deg, #ffffff 0%, #f1f5f9 100%);
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 26px;
+            cursor: pointer;
+            border: 2px solid #e2e8f0;
+            border-bottom: 6px solid #16a34a; /* 麻雀牌風の緑の厚み */
+            box-shadow: 0 6px 10px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.9);
+            transition: transform 0.15s ease, filter 0.2s ease, opacity 0.2s ease;
+            will-change: transform, left, top;
+        }
+
+        /* 選択可能なオープン状態 */
+        .tile.unlocked:active {
+            transform: scale(0.92) translateY(2px);
+        }
+
+        /* 下層に隠れているロック状態 */
+        .tile.locked {
+            filter: brightness(0.45) grayscale(30%);
+            cursor: not-allowed;
+            border-bottom-color: #15803d;
+        }
+
+        /* ロック時の暗いオーバーレイ */
+        .tile.locked::after {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background: rgba(15, 23, 42, 0.4);
+            border-radius: 6px;
+            pointer-events: none;
+        }
+
+        /* 下部トレイ枠 */
+        .tray-slot {
+            width: 46px;
+            height: 54px;
+            background: rgba(255, 255, 255, 0.15);
+            border: 2px dashed rgba(255, 255, 255, 0.3);
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 26px;
+            box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.3);
+        }
+
+        .btn-glow {
+            box-shadow: 0 4px 14px rgba(0, 0, 0, 0.3), 0 2px 0 rgba(255, 255, 255, 0.2) inset;
+        }
+        .btn-glow:active {
+            transform: translateY(2px);
+            box-shadow: 0 2px 6px rgba(0, 0, 0, 0.4);
+        }
+    </style>
+</head>
+<body class="h-screen w-screen flex flex-col justify-between items-center p-2 max-w-md mx-auto relative">
+
+    <header class="w-full flex items-center justify-between px-3 py-2 z-20">
+        <button id="back-btn" onclick="confirmReturnToMenu()" class="bg-purple-900/80 hover:bg-purple-800 text-purple-200 border border-purple-500/30 px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1 backdrop-blur-sm btn-glow">
+            <span>🏠</span> メニュー
+        </button>
+        <div class="text-center">
+            <div id="level-title" class="text-xs font-bold text-yellow-300 tracking-wider">初級</div>
+            <div id="remaining-count" class="text-base font-black text-white">残り: 45 枚</div>
+        </div>
+        <button onclick="restartGame()" class="bg-purple-900/80 hover:bg-purple-800 text-purple-200 border border-purple-500/30 px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1 backdrop-blur-sm btn-glow">
+            <span>🔄</span> リセット
+        </button>
+    </header>
+
+    <main id="board-container" class="relative w-full flex-1 my-1 overflow-hidden flex items-center justify-center">
+        <div id="board" class="relative w-full h-full max-w-[380px] max-h-[520px]"></div>
+    </main>
+
+    <footer class="w-full flex flex-col items-center gap-2 pb-3 z-20">
+        <!-- トレイボックス -->
+        <div class="w-full bg-slate-900/80 border-2 border-amber-500/40 rounded-2xl p-2 backdrop-blur-md shadow-2xl">
+            <div id="tray" class="flex justify-center items-center gap-1.5 h-[62px]">
+                <!-- 7個のトレイ枠 -->
+            </div>
+        </div>
+
+        <!-- アシストアイテムボタン -->
+        <div class="grid grid-cols-3 gap-3 w-full px-1">
+            <button onclick="useUndo()" class="bg-gradient-to-b from-blue-500 to-blue-700 hover:from-blue-600 hover:to-blue-800 text-white p-2.5 rounded-xl font-bold text-xs flex flex-col items-center justify-center gap-0.5 border border-blue-300/30 btn-glow">
+                <span class="text-base">↩️</span>
+                <span>やり直し (<span id="count-undo">3</span>)</span>
+            </button>
+            <button onclick="useShuffle()" class="bg-gradient-to-b from-amber-500 to-amber-700 hover:from-amber-600 hover:to-amber-800 text-white p-2.5 rounded-xl font-bold text-xs flex flex-col items-center justify-center gap-0.5 border border-amber-300/30 btn-glow">
+                <span class="text-base">🔀</span>
+                <span>シャッフル (<span id="count-shuffle">3</span>)</span>
+            </button>
+            <button onclick="useAutoMatch()" class="bg-gradient-to-b from-emerald-500 to-emerald-700 hover:from-emerald-600 hover:to-emerald-800 text-white p-2.5 rounded-xl font-bold text-xs flex flex-col items-center justify-center gap-0.5 border border-emerald-300/30 btn-glow">
+                <span class="text-base">🪄</span>
+                <span>自動揃え (<span id="count-auto">3</span>)</span>
+            </button>
+        </div>
+    </footer>
+
+    <div id="menu-modal" class="fixed inset-0 bg-slate-950/90 backdrop-blur-md z-50 flex flex-col items-center justify-center p-4">
+        <div class="w-full max-w-xs text-center space-y-6">
+            <div class="space-y-1">
+                <h1 class="text-3xl font-black text-transparent bg-clip-text bg-gradient-to-r from-yellow-300 via-amber-400 to-orange-500 tracking-wide">
+                    🧩 トリプルマッチ
+                </h1>
+                <p class="text-xs text-purple-200/80">めくって進む！段階解封パズル</p>
+            </div>
+
+            <!-- メニューボタン（「初級」「中級」「上級」） -->
+            <div class="space-y-4">
+                <button onclick="selectLevel('easy')" class="w-full bg-gradient-to-r from-emerald-600 to-teal-700 hover:from-emerald-500 hover:to-teal-600 border-2 border-emerald-400/50 py-4 px-6 rounded-2xl flex flex-col items-center justify-center text-white shadow-xl btn-glow transition">
+                    <span class="text-xl font-black">初級 (45枚)</span>
+                    <span class="text-[10px] text-emerald-200">八百屋パネルのみ</span>
+                </button>
+
+                <button onclick="selectLevel('normal')" class="w-full bg-gradient-to-r from-amber-600 to-orange-700 hover:from-amber-500 hover:to-orange-600 border-2 border-amber-400/50 py-4 px-6 rounded-2xl flex flex-col items-center justify-center text-white shadow-xl btn-glow transition">
+                    <span class="text-xl font-black">中級 (90枚)</span>
+                    <span class="text-[10px] text-amber-200">八百屋 ➔ 飲食店が解放！</span>
+                </button>
+
+                <button onclick="selectLevel('hard')" class="w-full bg-gradient-to-r from-rose-600 to-red-700 hover:from-rose-500 hover:to-red-600 border-2 border-rose-400/50 py-4 px-6 rounded-2xl flex flex-col items-center justify-center text-white shadow-xl btn-glow transition">
+                    <span class="text-xl font-black">上級 (150枚)</span>
+                    <span class="text-[10px] text-rose-200">八百屋 ➔ 飲食店 ➔ 乗り物が解放！</span>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <div id="result-modal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-md z-50 flex items-center justify-center p-4 hidden">
+        <div class="bg-slate-900 border-2 border-purple-500/40 p-6 rounded-3xl text-center max-w-xs w-full space-y-4 shadow-2xl">
+            <div id="result-emoji" class="text-5xl animate-bounce">🎉</div>
+            <div class="space-y-1">
+                <h2 id="result-title" class="text-2xl font-black text-amber-300">CLEAR!</h2>
+                <p id="result-desc" class="text-xs text-slate-300">すべてのパネルを見事に消去しました！</p>
+            </div>
+            <div class="flex gap-2 pt-2">
+                <button onclick="openMenu()" class="flex-1 bg-slate-700 hover:bg-slate-600 text-white py-2.5 rounded-xl font-bold text-xs">
+                    メニュー
+                </button>
+                <button onclick="restartGame()" class="flex-1 bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700 text-white py-2.5 rounded-xl font-bold text-xs btn-glow">
+                    もう一度遊ぶ
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const EMOJI_SETS = {
+            // 八百屋（15種類）
+            grocery: ['🍎', '🍏', '🍊', '🍋', '🍌', '🍉', '🍇', '🍓', '🍑', '🍍', '🥦', '🥕', '🌽', '茄', '🍄'].map((e, idx) => ['🍎', '🍏', '🍊', '🍋', '🍌', '🍉', '🍇', '🍓', '🍑', '🍍', '🥦', '🥕', '🌽', '🍆', '🍄'][idx]),
+            // 飲食店（15種類）
+            restaurant: ['🍔', '🍟', '🍕', '🌭', '🥪', '🌮', '🍣', '🍜', '🍛', '🍱', '🥟', '🍦', '🍩', '🍰', '🥞'],
+            // 乗り物（20種類）
+            vehicle: ['🚗', '🚕', '🚙', '🚌', '🏎️', '🚓', '🚑', '🚒', '🚚', '🏍️', '🚲', '✈️', '🚁', '🚀', '🛸', '⛵', '🚤', '🛳️', '🚆', '🚟']
+        };
+
+        const TILE_W = 48;
+        const TILE_H = 56;
+        const TRAY_CAPACITY = 7;
+
+        let currentLevel = 'easy';
+        let tiles = [];
+        let tray = [];
+        let historyStack = [];
+        let itemCounts = { undo: 3, shuffle: 3, auto: 3 };
+
+        const LEVEL_CONFIGS = {
+            easy: { title: '初級', totalTiles: 45 },
+            normal: { title: '中級', totalTiles: 90 },
+            hard: { title: '上級', totalTiles: 150 }
+        };
+
+        function selectLevel(level) {
+            currentLevel = level;
+            document.getElementById('menu-modal').classList.add('hidden');
+            restartGame();
+        }
+
+        function openMenu() {
+            document.getElementById('result-modal').classList.add('hidden');
+            document.getElementById('menu-modal').classList.remove('hidden');
+        }
+
+        function confirmReturnToMenu() {
+            if (confirm("ゲームを中断してメニューに戻りますか？")) {
+                openMenu();
+            }
+        }
+
+        function restartGame() {
+            document.getElementById('result-modal').classList.add('hidden');
+            itemCounts = { undo: 3, shuffle: 3, auto: 3 };
+            historyStack = [];
+            tray = [];
+            updateItemCountUI();
+
+            const config = LEVEL_CONFIGS[currentLevel];
+            document.getElementById('level-title').innerText = config.title;
+
+            generateTilePositionsAndEmojis(config);
+            updateTileCoverStates();
+            render();
+        }
+
+        // 重なり判定用関数
+        function isCoveredByOther(tileA, tileB) {
+            if (tileB.layer <= tileA.layer) return false;
+            return Math.abs(tileA.x - tileB.x) < TILE_W - 6 && Math.abs(tileA.y - tileB.y) < TILE_H - 6;
+        }
+
+        function generateTilePositionsAndEmojis(config) {
+            tiles = [];
+            let tileId = 0;
+
+            const boardEl = document.getElementById('board');
+            const boardW = boardEl.clientWidth || 360;
+            const boardH = boardEl.clientHeight || 480;
+
+            // 1. タイルの位置（x, y, layer）を生成
+            if (currentLevel === 'easy') {
+                const layersDef = [
+                    { level: 2, count: 12 },
+                    { level: 1, count: 18 },
+                    { level: 0, count: 15 }
+                ];
+                layersDef.forEach(l => {
+                    for (let i = 0; i < l.count; i++) {
+                        const pos = getRandomPosForLayer(l.level, boardW, boardH);
+                        tiles.push({
+                            id: tileId++, emoji: '', layer: l.level,
+                            x: pos.x, y: pos.y, inTray: false, matched: false, isLocked: false
+                        });
+                    }
+                });
+            } else if (currentLevel === 'normal') {
+                const layersDef = [
+                    { level: 3, count: 18 },
+                    { level: 2, count: 26 },
+                    { level: 1, count: 26 },
+                    { level: 0, count: 20 }
+                ];
+                layersDef.forEach(l => {
+                    for (let i = 0; i < l.count; i++) {
+                        const pos = getRandomPosForLayer(l.level, boardW, boardH);
+                        tiles.push({
+                            id: tileId++, emoji: '', layer: l.level,
+                            x: pos.x, y: pos.y, inTray: false, matched: false, isLocked: false
+                        });
+                    }
+                });
+            } else {
+                // 上級 150枚
+                const layersDef = [
+                    { level: 4, count: 22 },
+                    { level: 3, count: 32 },
+                    { level: 2, count: 40 },
+                    { level: 1, count: 34 },
+                    { level: 0, count: 22 }
+                ];
+                layersDef.forEach(l => {
+                    for (let i = 0; i < l.count; i++) {
+                        const pos = getRandomPosForLayer(l.level, boardW, boardH);
+                        tiles.push({
+                            id: tileId++, emoji: '', layer: l.level,
+                            x: pos.x, y: pos.y, inTray: false, matched: false, isLocked: false
+                        });
+                    }
+                });
+            }
+
+            // 2. 剥がしシミュレーション（Peeling Order Simulation）により絵文字を割り当てる
+            // これにより、初期状態で露出・ロック解除されるタイルには100%「八百屋」が割り当てられます。
+
+            let groceryGroups = shuffleArray(EMOJI_SETS.grocery.map(e => [e, e, e]));
+            let restaurantGroups = shuffleArray(EMOJI_SETS.restaurant.map(e => [e, e, e]));
+            let vehicleGroups = shuffleArray(EMOJI_SETS.vehicle.map(e => [e, e, e]));
+
+            let tripleGroups = [];
+            if (currentLevel === 'easy') {
+                tripleGroups = [...groceryGroups];
+            } else if (currentLevel === 'normal') {
+                tripleGroups = [...groceryGroups, ...restaurantGroups];
+            } else { // hard
+                tripleGroups = [...groceryGroups, ...restaurantGroups, ...vehicleGroups];
+            }
+
+            // シミュレーション作業用タイルのコピー
+            let remaining = [...tiles];
+
+            for (let group of tripleGroups) {
+                // 現在 remaining の中で他のどのタイルにも上から覆われていない（＝露出している）タイルを探す
+                let exposed = remaining.filter(tileA => {
+                    return !remaining.some(tileB => tileB.id !== tileA.id && isCoveredByOther(tileA, tileB));
+                });
+
+                // もし露出しているタイルが3枚未満なら、残りのうち高レイヤー順に補完する
+                if (exposed.length < 3) {
+                    remaining.sort((a, b) => b.layer - a.layer);
+                    exposed = [...remaining];
+                } else {
+                    // 同じレイヤー内での偏りを防ぐためランダム化
+                    exposed = shuffleArray(exposed);
+                }
+
+                // 先頭から3枚選択して絵文字をセット
+                let selected = exposed.slice(0, 3);
+                selected.forEach((targetTile, idx) => {
+                    targetTile.emoji = group[idx];
+                });
+
+                // シミュレーション上で除去扱いにする
+                const selectedIds = new Set(selected.map(s => s.id));
+                remaining = remaining.filter(t => !selectedIds.has(t.id));
+            }
+        }
+
+        function getRandomPosForLayer(layerLvl, boardW, boardH) {
+            const cols = 6 - (layerLvl % 2);
+            const rows = 7 - (layerLvl % 2);
+            const col = Math.floor(Math.random() * cols);
+            const row = Math.floor(Math.random() * rows);
+
+            const gridW = 46;
+            const gridH = 50;
+
+            const startX = (boardW - (cols * gridW)) / 2 + (layerLvl * 6);
+            const startY = (boardH - (rows * gridH)) / 2 + (layerLvl * 6);
+
+            return {
+                x: Math.round(startX + col * gridW),
+                y: Math.round(startY + row * gridH)
+            };
+        }
+
+        function shuffleArray(array) {
+            let arr = [...array];
+            for (let i = arr.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [arr[i], arr[j]] = [arr[j], arr[i]];
+            }
+            return arr;
+        }
+
+        function updateTileCoverStates() {
+            for (let i = 0; i < tiles.length; i++) {
+                const t1 = tiles[i];
+                if (t1.inTray || t1.matched) continue;
+
+                let covered = false;
+                for (let j = 0; j < tiles.length; j++) {
+                    const t2 = tiles[j];
+                    if (t2.inTray || t2.matched) continue;
+
+                    if (isCoveredByOther(t1, t2)) {
+                        covered = true;
+                        break;
+                    }
+                }
+                t1.isLocked = covered;
+            }
+        }
+
+        function render() {
+            const boardEl = document.getElementById('board');
+            boardEl.innerHTML = '';
+
+            const remainingTiles = tiles.filter(t => !t.inTray && !t.matched);
+            document.getElementById('remaining-count').innerText = `残り: ${remainingTiles.length} 枚`;
+
+            // 重なりを描画順（下層→上層）で正しく表示するためにソート
+            remainingTiles.sort((a, b) => a.layer - b.layer);
+
+            remainingTiles.forEach(tile => {
+                const div = document.createElement('div');
+                div.className = `tile ${tile.isLocked ? 'locked' : 'unlocked'}`;
+                div.style.left = `${tile.x}px`;
+                div.style.top = `${tile.y}px`;
+                div.style.zIndex = tile.layer * 10;
+                div.innerHTML = tile.emoji;
+
+                if (!tile.isLocked) {
+                    div.onclick = () => onTileClick(tile.id);
+                }
+                boardEl.appendChild(div);
+            });
+
+            // トレイの描画
+            const trayEl = document.getElementById('tray');
+            trayEl.innerHTML = '';
+
+            for (let i = 0; i < TRAY_CAPACITY; i++) {
+                const slot = document.createElement('div');
+                slot.className = 'tray-slot';
+                if (tray[i]) {
+                    slot.innerHTML = tray[i].emoji;
+                    slot.classList.add('bg-white', 'text-slate-900', 'border-amber-400', 'shadow-md');
+                }
+                trayEl.appendChild(slot);
+            }
+        }
+
+        function onTileClick(tileId) {
+            if (tray.length >= TRAY_CAPACITY) return;
+
+            const tile = tiles.find(t => t.id === tileId);
+            if (!tile || tile.isLocked || tile.inTray || tile.matched) return;
+
+            saveHistory();
+
+            tile.inTray = true;
+            tray.push(tile);
+            
+            // トレイ内で同一絵文字をソート並び替え
+            tray.sort((a, b) => a.emoji.localeCompare(b.emoji));
+
+            updateTileCoverStates();
+            checkTripleMatch();
+            render();
+
+            if (tray.length >= TRAY_CAPACITY) {
+                setTimeout(() => showResultModal(false), 250);
+            } else {
+                checkWinCondition();
+            }
+        }
+
+        function checkTripleMatch() {
+            const counts = {};
+            tray.forEach(t => counts[t.emoji] = (counts[t.emoji] || 0) + 1);
+
+            for (let emoji in counts) {
+                if (counts[emoji] >= 3) {
+                    let removed = 0;
+                    tray = tray.filter(t => {
+                        if (t.emoji === emoji && removed < 3) {
+                            t.matched = true;
+                            removed++;
+                            return false;
+                        }
+                        return true;
+                    });
+                }
+            }
+        }
+
+        function checkWinCondition() {
+            const remaining = tiles.filter(t => !t.matched);
+            if (remaining.length === 0) {
+                setTimeout(() => showResultModal(true), 250);
+            }
+        }
+
+        function saveHistory() {
+            historyStack.push({
+                tiles: JSON.parse(JSON.stringify(tiles)),
+                tray: JSON.parse(JSON.stringify(tray))
+            });
+            if (historyStack.length > 10) historyStack.shift();
+        }
+
+        function useUndo() {
+            if (itemCounts.undo <= 0) return alert("「やり直し」の残数がありません");
+            if (historyStack.length === 0) return;
+
+            itemCounts.undo--;
+            const state = historyStack.pop();
+            tiles = state.tiles;
+            tray = state.tray;
+
+            updateTileCoverStates();
+            updateItemCountUI();
+            render();
+        }
+
+        function useShuffle() {
+            if (itemCounts.shuffle <= 0) return alert("「シャッフル」の残数がありません");
+
+            const activeBoardTiles = tiles.filter(t => !t.inTray && !t.matched);
+            if (activeBoardTiles.length === 0) return;
+
+            itemCounts.shuffle--;
+
+            const remainingEmojis = shuffleArray(activeBoardTiles.map(t => t.emoji));
+            activeBoardTiles.forEach((t, idx) => {
+                t.emoji = remainingEmojis[idx];
+            });
+
+            updateTileCoverStates();
+            updateItemCountUI();
+            render();
+        }
+
+        function useAutoMatch() {
+            if (itemCounts.auto <= 0) return alert("「自動揃え」の残数がありません");
+            if (tray.length >= TRAY_CAPACITY) return;
+
+            let targetEmoji = null;
+            if (tray.length > 0) {
+                targetEmoji = tray[0].emoji;
+            } else {
+                const unlocked = tiles.filter(t => !t.inTray && !t.matched && !t.isLocked);
+                if (unlocked.length > 0) {
+                    targetEmoji = unlocked[0].emoji;
+                }
+            }
+
+            if (!targetEmoji) return;
+
+            saveHistory();
+            itemCounts.auto--;
+
+            let collected = tray.filter(t => t.emoji === targetEmoji).length;
+            const availableBoardTiles = tiles.filter(t => !t.inTray && !t.matched && t.emoji === targetEmoji);
+            availableBoardTiles.sort((a, b) => (a.isLocked ? 1 : -1));
+
+            for (let tile of availableBoardTiles) {
+                if (collected >= 3) break;
+                tile.inTray = true;
+                tray.push(tile);
+                collected++;
+            }
+
+            tray.sort((a, b) => a.emoji.localeCompare(b.emoji));
+            updateTileCoverStates();
+            checkTripleMatch();
+            updateItemCountUI();
+            render();
+
+            checkWinCondition();
+        }
+
+        function updateItemCountUI() {
+            document.getElementById('count-undo').innerText = itemCounts.undo;
+            document.getElementById('count-shuffle').innerText = itemCounts.shuffle;
+            document.getElementById('count-auto').innerText = itemCounts.auto;
+        }
+
+        function showResultModal(isWin) {
+            const modal = document.getElementById('result-modal');
+            const title = document.getElementById('result-title');
+            const desc = document.getElementById('result-desc');
+            const emoji = document.getElementById('result-emoji');
+
+            if (isWin) {
+                emoji.innerText = '🎉';
+                title.innerText = 'STAGE CLEAR!';
+                title.className = 'text-2xl font-black text-amber-300';
+                desc.innerText = 'すべての山積みパネルをクリアしました！';
+            } else {
+                emoji.innerText = '💥';
+                title.innerText = 'GAME OVER';
+                title.className = 'text-2xl font-black text-rose-400';
+                desc.innerText = 'トレイがいっぱいになりました...';
+            }
+            modal.classList.remove('hidden');
+        }
+
+        window.onload = () => {
+            openMenu();
+        };
+    </script>
+</body>
+</html>
