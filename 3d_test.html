@@ -247,8 +247,8 @@
                     <label for="toggle-gyro" class="cursor-pointer font-medium">ジャイロ（傾き）センサーを使用</label>
                 </div>
                 <div class="flex items-center gap-2">
-                    <input type="checkbox" id="toggle-invert-gyro" class="rounded text-amber-500 focus:ring-0 w-4 h-4" checked>
-                    <label for="toggle-invert-gyro" class="cursor-pointer font-medium">ジャイロの左右反転</label>
+                    <input type="checkbox" id="toggle-invert-gyro" class="rounded text-amber-500 focus:ring-0 w-4 h-4">
+                    <label for="toggle-invert-gyro" class="cursor-pointer font-medium">ジャイロの左右反転（お好みで）</label>
                 </div>
             </div>
 
@@ -297,7 +297,7 @@ const state = {
     time: 0,
     startTime: 0,
     useGyro: true,
-    invertGyro: true, // ONがデフォルト（お好みでオフにできます）
+    invertGyro: false, // オフがデフォルト（右に傾ける→右へ曲がる／お好みでONに変更可）
     gyroReady: false,
     gameFlowStarted: false,
     gyroGamma: 0,
@@ -2381,11 +2381,11 @@ function buildJapaneseCity() {
     // 交差点1 & 2 横断歩道と信号機
     createCrosswalk(-4.5, 42, 16, 6, true);
     createCrosswalk(-14.5, 30, 6, 16, false);
-    createTrafficLightMesh(5.0, 42, Math.PI / 2, '共栄通り');
+    createTrafficLightMesh(-12.0, 42, Math.PI / 2, '共栄通り');
 
     createCrosswalk(-70, 30, 6, 16, false);
     createCrosswalk(-80, 18, 16, 6, true);
-    createTrafficLightMesh(-70.5, 42, 0, '弥生坂');
+    createTrafficLightMesh(-70.0, 20, 0, '弥生坂');
 
     // 歩道・縁石（道路1・道路3沿い、メインの走行区間）
     createSidewalkStrip(-14.0, 116, 3.0, 195, true);
@@ -2468,7 +2468,7 @@ function buildJapaneseCity() {
 
     addLaneMarkings(-116, -270, 90, 8, false, [[-88, -68]]);
     createCrosswalk(-80, -262, 16, 6, true);
-    createTrafficLightMesh(-70.5, -278, 0, '共栄通り西');
+    createTrafficLightMesh(-89.0, -278, 0, '共栄通り西');
     createGuardrailSegment(-73.2, -256, 9, 0);
 
     createSidewalkStrip(-116, -259.5, 3.0, 90, false);
@@ -2902,7 +2902,7 @@ function initControls() {
 
             initAudio();
             state.useGyro = toggleGyroEl ? toggleGyroEl.checked : true;
-            state.invertGyro = toggleInvertGyroEl ? toggleInvertGyroEl.checked : true;
+            state.invertGyro = toggleInvertGyroEl ? toggleInvertGyroEl.checked : false;
             if (state.useGyro) hideManualSteerFallback(); else showManualSteerFallback();
             requestFullscreenSafe();
 
