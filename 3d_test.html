@@ -137,7 +137,7 @@
     </div>
 
     <!-- Fullscreen Toggle (always available, top-right, above HUD) -->
-    <button id="btn-fullscreen" class="absolute top-3 right-3 sm:top-4 sm:right-4 z-40 icon-btn-sm w-10 h-10 sm:w-11 sm:h-11 rounded-full flex items-center justify-center text-white/90 safe-area-top" style="margin-top: env(safe-area-inset-top, 0px);">
+    <button id="btn-fullscreen" class="absolute right-3 sm:right-4 z-40 icon-btn-sm w-10 h-10 sm:w-11 sm:h-11 rounded-full flex-shrink-0 flex items-center justify-center text-white/90" style="top: calc(0.75rem + env(safe-area-inset-top, 0px));">
         <i class="fa-solid fa-expand text-sm sm:text-base" id="fullscreen-icon"></i>
     </button>
 
@@ -216,71 +216,41 @@
     </div>
 
     <!-- Start Modal -->
-    <div id="start-modal" class="absolute inset-0 z-20 bg-gray-950/90 backdrop-blur-lg flex flex-col items-center justify-center p-5 text-center safe-area-bottom hidden">
-        <div class="max-w-md w-full bg-gray-900 border border-gray-800 rounded-3xl p-5 sm:p-7 shadow-2xl relative overflow-hidden max-h-[92vh] overflow-y-auto">
-            <div class="text-4xl sm:text-5xl mb-2">🛵💨</div>
-            <h1 class="text-xl sm:text-2xl font-black text-transparent bg-clip-text bg-gradient-to-r from-amber-400 to-orange-500 mb-1">
+    <div id="start-modal" class="absolute inset-0 z-20 bg-gray-950/90 backdrop-blur-lg flex flex-col items-center justify-center p-4 text-center safe-area-bottom hidden">
+        <div class="max-w-md w-full bg-gray-900 border border-gray-800 rounded-3xl p-4 sm:p-6 shadow-2xl relative overflow-hidden max-h-[94vh] overflow-y-auto">
+            <div class="text-3xl sm:text-4xl mb-1">🛵💨</div>
+            <h1 class="text-lg sm:text-xl font-black text-transparent bg-clip-text bg-gradient-to-r from-amber-400 to-orange-500 mb-2">
                 日本の街並み 3D出前ライダー
             </h1>
-            <p class="text-[11px] text-gray-400 mb-4">信号を守り、対向車や子供・動物を避けて料理を届けよう！</p>
 
-            <div class="bg-gray-800/60 rounded-2xl p-3.5 text-left text-xs text-gray-300 mb-4 border border-gray-700/40 space-y-1.5">
-                <div class="flex items-center gap-2 font-bold text-amber-400 mb-1">
-                    <i class="fa-solid fa-gamepad"></i> 操作・ルール
+            <div class="flex items-center justify-between w-full mb-1.5">
+                <div class="flex items-center gap-1.5 font-black text-sm text-amber-400">
+                    <i class="fa-solid fa-route"></i> 最短ルート案内マップ
                 </div>
+                <span class="bg-emerald-500/20 text-emerald-400 text-[10px] px-2 py-0.5 rounded-full border border-emerald-500/30 font-bold">①左折➔②右折</span>
+            </div>
+            <canvas id="map-canvas" width="340" height="220" class="w-full max-w-[320px] h-[180px] mb-2.5 border border-gray-700 mx-auto"></canvas>
+
+            <div class="bg-gray-800/60 rounded-2xl p-2.5 text-left text-[11px] text-gray-300 mb-3 border border-gray-700/40 space-y-1">
                 <div class="flex items-center gap-2">
                     <span class="bg-amber-900/80 text-amber-300 px-1.5 py-0.5 rounded text-[10px] font-mono">傾き操作</span>
                     <span>スマホを左右に傾けてハンドル（ジャイロ）</span>
                 </div>
-                <div class="flex items-center gap-2">
-                    <span class="bg-emerald-900/80 text-emerald-300 px-1.5 py-0.5 rounded text-[10px] font-mono">右下ボタン</span>
-                    <span>アクセル (前進加速)</span>
-                </div>
-                <div class="flex items-center gap-2">
-                    <span class="bg-red-900/80 text-red-300 px-1.5 py-0.5 rounded text-[10px] font-mono">左下ボタン</span>
-                    <span>ブレーキ (離すと自然停止)</span>
-                </div>
-                <div class="text-amber-400 font-bold pt-1.5 border-t border-gray-700/80 flex items-center gap-1 text-[11px]">
-                    <i class="fa-solid fa-traffic-light"></i> 赤信号無視やコースアウトは「⚠️ 違反」、接触は「💥 事故」！
+                <div class="text-amber-400 font-bold pt-1 border-t border-gray-700/80 flex items-center gap-1">
+                    <i class="fa-solid fa-traffic-light"></i> 赤信号無視やコースアウトは違反、接触は事故！
                 </div>
             </div>
 
-            <button id="show-map-btn" class="w-full py-3.5 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 text-gray-950 font-black rounded-2xl shadow-lg shadow-orange-500/30 text-base transition-transform active:scale-95 flex items-center justify-center gap-2">
-                <i class="fa-solid fa-map-location-dot"></i> コース確認へ進む
-            </button>
-
-            <!-- Gyro & Display Settings -->
-            <div class="mt-4 flex flex-col gap-2 items-center text-xs text-gray-300 border-t border-gray-800 pt-3">
+            <div class="flex flex-col gap-1.5 items-center text-xs text-gray-300 mb-3">
                 <div class="flex items-center gap-2">
                     <input type="checkbox" id="toggle-gyro" class="rounded text-amber-500 focus:ring-0 w-4 h-4" checked>
                     <label for="toggle-gyro" class="cursor-pointer font-medium">ジャイロ（傾き）センサーを使用</label>
                 </div>
                 <div class="flex items-center gap-2">
-                    <input type="checkbox" id="toggle-invert-gyro" class="rounded text-amber-500 focus:ring-0 w-4 h-4">
-                    <label for="toggle-invert-gyro" class="cursor-pointer font-medium">ジャイロの左右反転（お好みで）</label>
+                    <input type="checkbox" id="toggle-invert-gyro" class="rounded text-amber-500 focus:ring-0 w-4 h-4" checked>
+                    <label for="toggle-invert-gyro" class="cursor-pointer font-medium">ジャイロの左右反転</label>
                 </div>
-                <button id="btn-fullscreen-start" class="mt-1 flex items-center gap-1.5 text-[11px] text-sky-300 bg-sky-950/60 border border-sky-700/50 px-3 py-1.5 rounded-full active:scale-95">
-                    <i class="fa-solid fa-expand"></i> フルスクリーンで開始
-                </button>
             </div>
-        </div>
-    </div>
-
-    <!-- Map Modal -->
-    <div id="map-modal" class="absolute inset-0 z-25 bg-gray-950/95 backdrop-blur-xl flex flex-col items-center justify-center p-4 text-center hidden safe-area-bottom">
-        <div class="max-w-md w-full bg-gray-900 border border-gray-800 rounded-3xl p-5 shadow-2xl flex flex-col items-center">
-            <div class="flex items-center justify-between w-full mb-2">
-                <div class="flex items-center gap-2 font-black text-base sm:text-lg text-amber-400">
-                    <i class="fa-solid fa-route"></i> 最短ルート案内マップ
-                </div>
-                <span class="bg-emerald-500/20 text-emerald-400 text-[10px] px-2 py-0.5 rounded-full border border-emerald-500/30 font-bold">①左折 ➔ ②右折 コース</span>
-            </div>
-
-            <p class="text-xs text-gray-400 mb-3 text-left w-full">
-                下からスタートし、①交差点を左折 ◀ ➔ ②次の交差点を右折 ▶ して目的地の家を目指します。
-            </p>
-
-            <canvas id="map-canvas" width="340" height="260" class="w-full max-w-[340px] h-[220px] mb-4 border border-gray-700"></canvas>
 
             <button id="start-driving-btn" class="w-full py-3.5 bg-gradient-to-r from-emerald-500 to-green-600 hover:from-emerald-400 hover:to-green-500 text-gray-950 font-black rounded-2xl shadow-lg shadow-green-500/30 text-base transition-transform active:scale-95 flex items-center justify-center gap-2">
                 <i class="fa-solid fa-motorcycle"></i> 出前スタート！
@@ -312,7 +282,7 @@
             </div>
 
             <button id="retry-btn" class="w-full py-3.5 bg-gradient-to-r from-amber-500 to-orange-500 text-gray-950 font-black rounded-2xl shadow-lg text-base transition-transform active:scale-95 flex items-center justify-center gap-2">
-                <i class="fa-solid fa-rotate-right"></i> もう一度配達する
+                <i class="fa-solid fa-rotate-right"></i> <span id="retry-btn-label">もう一度配達する</span>
             </button>
         </div>
     </div>
@@ -327,7 +297,7 @@ const state = {
     time: 0,
     startTime: 0,
     useGyro: true,
-    invertGyro: false, // オフ = 標準（右に傾ける→右へ曲がる）。オンにすると左右反転。
+    invertGyro: true, // ONがデフォルト（お好みでオフにできます）
     gyroReady: false,
     gameFlowStarted: false,
     gyroGamma: 0,
@@ -359,6 +329,7 @@ let scene, camera, renderer;
 let scooterGroup, frontWheel, rearWheel, handlebar, headlight, frontForkGroup, tailLight;
 let chefMesh;
 let customerMesh;
+let customer2Mesh;
 let signalLamps = []; // 信号機のライトメッシュ参照
 let clockDelta = new THREE.Clock();
 
@@ -367,11 +338,23 @@ let clockDelta = new THREE.Clock();
 // Intersection 1: (-4.5, 0, 30) -> Turn Left to (-80, 0, 30)
 // Intersection 2: (-80, 0, 30) -> Turn Right to (-80, 0, -220)
 // Goal: (-80, 0, -220)
-const startPoint = new THREE.Vector3(-9.6, 0, 150);
+// ステージごとの主要地点。goalPoint / customerPos / startPoint はステージ進行に応じて書き換える。
+const STAGE1_START = new THREE.Vector3(-9.6, 0, 150);
 const intersection1Point = new THREE.Vector3(-4.5, 0, 30);
 const intersection2Point = new THREE.Vector3(-80, 0, 30);
-const goalPoint = new THREE.Vector3(-80, 0, -220);
-const customerPos = new THREE.Vector3(-88, 0, -220);
+const STAGE1_GOAL = new THREE.Vector3(-80, 0, -220);
+const STAGE1_CUSTOMER = new THREE.Vector3(-88, 0, -220);
+
+// ステージ2で追加される3つ目の曲がり角と、その先の新しい配達先
+const intersection3Point = new THREE.Vector3(-80, 0, -270);
+const STAGE2_GOAL = new THREE.Vector3(-152, 0, -270);
+const STAGE2_CUSTOMER = new THREE.Vector3(-152, 0, -259);
+
+let startPoint = STAGE1_START.clone();
+let goalPoint = STAGE1_GOAL.clone();
+let customerPos = STAGE1_CUSTOMER.clone();
+const maxStage = 2;
+let currentStage = 1;
 
 let buildingBounds = []; // 衝突判定用の建物バウンディングボックス {minX,maxX,minZ,maxZ}
 let difficultyLevel = 0; // 配達を達成するたびに上がる難易度（ページ再読み込みでリセット）
@@ -488,7 +471,8 @@ function triggerCrashSound() {
 // ============================================================================
 // Voice Guidance (Web Speech API)
 // ============================================================================
-let selectedJaVoice = null;
+let selectedJaVoiceFemale = null;
+let selectedJaVoiceMale = null;
 
 function pickJapaneseVoice() {
     if (!('speechSynthesis' in window)) return;
@@ -496,7 +480,9 @@ function pickJapaneseVoice() {
     if (!voices || voices.length === 0) return;
     const jaVoices = voices.filter(v => v.lang && v.lang.toLowerCase().startsWith('ja'));
     const femaleGuess = jaVoices.find(v => /female|woman|女性|Kyoko|Sakura|O-Ren|Ayumi/i.test(v.name));
-    selectedJaVoice = femaleGuess || jaVoices[0] || null;
+    const maleGuess = jaVoices.find(v => /male|man|男性|Otoya|Hattori|Ichiro/i.test(v.name) && !/female|woman/i.test(v.name));
+    selectedJaVoiceFemale = femaleGuess || jaVoices[0] || null;
+    selectedJaVoiceMale = maleGuess || jaVoices.find(v => v !== selectedJaVoiceFemale) || jaVoices[0] || null;
 }
 
 if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
@@ -505,7 +491,8 @@ if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
 }
 
 // テキストを読み上げ、話し終えたら onEnd を呼ぶ（未対応環境ではタイムアウトで代替）
-function speak(text, onEnd) {
+// voiceType: 'female'（システム案内・デフォルト） | 'male'（店長・渋めの低い声）
+function speak(text, onEnd, voiceType) {
     if (!('speechSynthesis' in window)) {
         if (onEnd) setTimeout(onEnd, 1000);
         return;
@@ -514,9 +501,15 @@ function speak(text, onEnd) {
         speechSynthesis.cancel();
         const utter = new SpeechSynthesisUtterance(text);
         utter.lang = 'ja-JP';
-        utter.rate = 1.02;
-        utter.pitch = 1.08;
-        if (selectedJaVoice) utter.voice = selectedJaVoice;
+        if (voiceType === 'male') {
+            utter.rate = 0.92;
+            utter.pitch = 0.62;
+            if (selectedJaVoiceMale) utter.voice = selectedJaVoiceMale;
+        } else {
+            utter.rate = 1.02;
+            utter.pitch = 1.08;
+            if (selectedJaVoiceFemale) utter.voice = selectedJaVoiceFemale;
+        }
 
         let finished = false;
         const finish = () => { if (!finished) { finished = true; if (onEnd) onEnd(); } };
@@ -1486,11 +1479,12 @@ function randomVehicleMesh(isParked) {
 // Traffic Lights, Crosswalks, Road Markings
 // ============================================================================
 // 1組の信号ランプ(青黄赤)一式を生成して指定グループに追加する共通ヘルパー
-// 大きく・分かりやすく表示するため通常サイズより大きめに作る
+// 大きく・分かりやすく表示するため通常サイズより大きめに作る。
+// レンズは球体にすることで、交差点への進入角度によらずどの方向からも
+// 色がはっきり見えるようにしている（向きの計算ミスによる「見えない」を防ぐ）。
 function addSignalLampSet(group, centerX, y, z, scale) {
-    const lampGeo = new THREE.CylinderGeometry(0.34 * scale, 0.34 * scale, 0.14 * scale, 20);
-    lampGeo.rotateX(Math.PI / 2);
-    const visorGeo = new THREE.CylinderGeometry(0.37 * scale, 0.37 * scale, 0.22 * scale, 20, 1, true, 0, Math.PI);
+    const lampGeo = new THREE.SphereGeometry(0.32 * scale, 20, 16);
+    const hoodGeo = new THREE.SphereGeometry(0.36 * scale, 16, 10, 0, Math.PI * 2, 0, Math.PI * 0.5);
     const gap = 0.92 * scale;
 
     const lampDefs = [
@@ -1500,17 +1494,16 @@ function addSignalLampSet(group, centerX, y, z, scale) {
     ];
     const lampRefs = {};
     for (const def of lampDefs) {
-        const lampMat = new THREE.MeshStandardMaterial({ color: def.offHex, emissive: def.offHex, emissiveIntensity: 1.0, roughness: 0.25 });
+        const lampMat = new THREE.MeshStandardMaterial({ color: def.offHex, emissive: def.offHex, emissiveIntensity: 1.0, roughness: 0.2, side: THREE.DoubleSide });
         const lamp = new THREE.Mesh(lampGeo, lampMat);
         lamp.position.set(def.x, y, z);
         group.add(lamp);
         lampRefs[def.key] = lamp;
 
-        const visor = new THREE.Mesh(visorGeo, MAT.darkMetal);
-        visor.rotation.z = Math.PI / 2;
-        visor.rotation.y = Math.PI / 2;
-        visor.position.set(def.x, y + 0.2 * scale, z + 0.16 * scale);
-        group.add(visor);
+        // 上部だけを覆う庇（どの角度から見てもレンズを隠さない）
+        const hood = new THREE.Mesh(hoodGeo, MAT.darkMetal);
+        hood.position.set(def.x, y + 0.06 * scale, z);
+        group.add(hood);
     }
     return lampRefs;
 }
@@ -1531,7 +1524,7 @@ function createTrafficLightMesh(x, z, rotY = 0, streetName) {
 
     // 信号機本体（横型・大型）
     const box = new THREE.Mesh(
-        new THREE.BoxGeometry(3.7, 1.3, 0.55),
+        new THREE.BoxGeometry(3.7, 1.3, 0.32),
         new THREE.MeshStandardMaterial({ color: 0x1a1f28, roughness: 0.4, metalness: 0.3 })
     );
     box.position.set(0.95, 6.1, 0);
@@ -1539,15 +1532,15 @@ function createTrafficLightMesh(x, z, rotY = 0, streetName) {
     group.add(box);
 
     // メインの信号（大きく・見やすく）
-    const mainLamps = addSignalLampSet(group, 0.95, 6.1, 0.24, 1.0);
+    const mainLamps = addSignalLampSet(group, 0.95, 6.1, 0.42, 1.0);
     signalLamps.push({ blue: mainLamps.blue, yellow: mainLamps.yellow, red: mainLamps.red });
 
     // 近づいたときに見やすいよう、低めの位置にも同じ信号を複製表示（ミニ信号）
-    const nearBox = new THREE.Mesh(new THREE.BoxGeometry(2.1, 0.75, 0.32),
+    const nearBox = new THREE.Mesh(new THREE.BoxGeometry(2.1, 0.75, 0.2),
         new THREE.MeshStandardMaterial({ color: 0x1a1f28, roughness: 0.4, metalness: 0.3 }));
     nearBox.position.set(0.95, 3.55, 0);
     group.add(nearBox);
-    const nearLamps = addSignalLampSet(group, 0.95, 3.55, 0.16, 0.56);
+    const nearLamps = addSignalLampSet(group, 0.95, 3.55, 0.30, 0.56);
     signalLamps[signalLamps.length - 1].blueNear = nearLamps.blue;
     signalLamps[signalLamps.length - 1].yellowNear = nearLamps.yellow;
     signalLamps[signalLamps.length - 1].redNear = nearLamps.red;
@@ -2335,6 +2328,7 @@ function initScene() {
     }
     const startModal = document.getElementById('start-modal');
     if (startModal) startModal.classList.remove('hidden');
+    drawRouteMap();
 }
 
 function buildJapaneseCity() {
@@ -2373,16 +2367,16 @@ function buildJapaneseCity() {
     roadMat3.map.wrapS = THREE.RepeatWrapping;
     roadMat3.map.wrapT = THREE.RepeatWrapping;
     roadMat3.map.repeat.set(2, 38);
-    const road3 = new THREE.Mesh(new THREE.PlaneGeometry(16, 300), roadMat3);
+    const road3 = new THREE.Mesh(new THREE.PlaneGeometry(16, 370), roadMat3);
     road3.rotation.x = -Math.PI / 2;
-    road3.position.set(-80, 0, -100);
+    road3.position.set(-80, 0, -115);
     road3.receiveShadow = true;
     scene.add(road3);
 
     // 車線・外側線
     addLaneMarkings(-4.5, 100, 200, 8, true, [[14, 46]]);
     addLaneMarkings(-40, 30, 120, 8, false, [[-16, 8], [-92, -66]]);
-    addLaneMarkings(-80, -100, 300, 8, true, [[14, 46]]);
+    addLaneMarkings(-80, -115, 340, 8, true, [[14, 46], [-284, -256]]);
 
     // 交差点1 & 2 横断歩道と信号機
     createCrosswalk(-4.5, 42, 16, 6, true);
@@ -2396,8 +2390,8 @@ function buildJapaneseCity() {
     // 歩道・縁石（道路1・道路3沿い、メインの走行区間）
     createSidewalkStrip(-14.0, 116, 3.0, 195, true);
     createSidewalkStrip(5.0, 116, 3.0, 195, true);
-    createSidewalkStrip(-89.5, -110, 3.0, 285, true);
-    createSidewalkStrip(-70.5, -110, 3.0, 285, true);
+    createSidewalkStrip(-89.5, -125, 3.0, 320, true);
+    createSidewalkStrip(-70.5, -125, 3.0, 320, true);
 
     // 電柱と電線（道路1西側・道路3東側に一定間隔で配置）
     const polesA = [];
@@ -2455,9 +2449,51 @@ function buildJapaneseCity() {
 
     // 出前を待つ住人（顧客）
     customerMesh = createCustomerMesh();
-    customerMesh.position.copy(customerPos);
+    customerMesh.position.copy(STAGE1_CUSTOMER);
     customerMesh.rotation.y = Math.PI / 2;
     scene.add(customerMesh);
+
+    // --- ステージ2: 3つ目の曲がり角とその先の配達先（あらかじめ街に組み込んでおく） ---
+    const roadMat4 = ROAD_MAT.clone();
+    roadMat4.map = ASPHALT_TEXTURE.clone();
+    roadMat4.map.needsUpdate = true;
+    roadMat4.map.wrapS = THREE.RepeatWrapping;
+    roadMat4.map.wrapT = THREE.RepeatWrapping;
+    roadMat4.map.repeat.set(11, 2);
+    const road4 = new THREE.Mesh(new THREE.PlaneGeometry(90, 16), roadMat4);
+    road4.rotation.x = -Math.PI / 2;
+    road4.position.set(-116, 0, -270);
+    road4.receiveShadow = true;
+    scene.add(road4);
+
+    addLaneMarkings(-116, -270, 90, 8, false, [[-88, -68]]);
+    createCrosswalk(-80, -262, 16, 6, true);
+    createTrafficLightMesh(-70.5, -278, 0, '共栄通り西');
+    createGuardrailSegment(-73.2, -256, 9, 0);
+
+    createSidewalkStrip(-116, -259.5, 3.0, 90, false);
+    createSidewalkStrip(-116, -280.5, 3.0, 90, false);
+
+    const polesC = [];
+    for (let x = -95; x >= -160; x -= 32) {
+        polesC.push(createUtilityPole(x, -282.5, polesC.length % 2 === 0));
+    }
+    for (let i = 0; i < polesC.length - 1; i++) connectWires(polesC[i].topPoint, polesC[i + 1].topPoint);
+    for (let x = -95; x >= -160; x -= 40) {
+        createTree(x, -257);
+    }
+
+    for (let x = -95; x >= -160; x -= 28) {
+        createBuilding(x, -251, 16, 11 + Math.random() * 9, 12, [0x475569, 0x64748b, 0x334155, 0x3f3f46][Math.floor(Math.random() * 4)]);
+        createBuilding(x - 10, -288, 16, 12 + Math.random() * 8, 12, [0x1e293b, 0x334155, 0x0f172a][Math.floor(Math.random() * 3)]);
+    }
+    createVendingMachine(-140, -256, Math.PI, false);
+
+    createSuburbanHouse(-152, -251);
+    customer2Mesh = createCustomerMesh();
+    customer2Mesh.position.copy(STAGE2_CUSTOMER);
+    customer2Mesh.rotation.y = Math.PI;
+    scene.add(customer2Mesh);
 
     // スタート地点の大将
     chefMesh = createChefMesh();
@@ -2685,47 +2721,88 @@ function drawRouteMap() {
     ctx.fillStyle = '#0f172a';
     ctx.fillRect(0, 0, w, h);
 
-    // 正確な座標変換（下から上へのドライバー進行マップ）
-    const mapX = (x) => 2.5165 * x + 271.3;
     const mapZ = (z) => 0.5135 * z + 148;
 
-    // 道路ベースライン
-    ctx.strokeStyle = '#334155';
-    ctx.lineWidth = 14;
-    ctx.beginPath();
-    ctx.moveTo(mapX(-4.5), mapZ(160));
-    ctx.lineTo(mapX(-4.5), mapZ(30));
-    ctx.lineTo(mapX(-80), mapZ(30));
-    ctx.lineTo(mapX(-80), mapZ(-230));
-    ctx.stroke();
+    if (currentStage < 2) {
+        // ステージ1: スタート→①左折→②右折→ゴール
+        const mapX = (x) => 2.5165 * x + 271.3;
 
-    // 赤いルートライン
-    ctx.strokeStyle = '#ef4444';
-    ctx.lineWidth = 5;
-    ctx.beginPath();
-    ctx.moveTo(mapX(startPoint.x), mapZ(startPoint.z));
-    ctx.lineTo(mapX(intersection1Point.x), mapZ(intersection1Point.z));
-    ctx.lineTo(mapX(intersection2Point.x), mapZ(intersection2Point.z));
-    ctx.lineTo(mapX(goalPoint.x), mapZ(goalPoint.z));
-    ctx.stroke();
+        ctx.strokeStyle = '#334155';
+        ctx.lineWidth = 14;
+        ctx.beginPath();
+        ctx.moveTo(mapX(-4.5), mapZ(160));
+        ctx.lineTo(mapX(-4.5), mapZ(30));
+        ctx.lineTo(mapX(-80), mapZ(30));
+        ctx.lineTo(mapX(-80), mapZ(-230));
+        ctx.stroke();
 
-    // コース指示ポイントテキスト描画
-    ctx.fillStyle = '#f8fafc';
-    ctx.font = 'bold 11px sans-serif';
-    ctx.fillText('① 左折◀', mapX(-4.5) + 8, mapZ(30) + 4);
-    ctx.fillText('② 右折▶', mapX(-80) - 52, mapZ(30) - 8);
+        ctx.strokeStyle = '#ef4444';
+        ctx.lineWidth = 5;
+        ctx.beginPath();
+        ctx.moveTo(mapX(STAGE1_START.x), mapZ(STAGE1_START.z));
+        ctx.lineTo(mapX(intersection1Point.x), mapZ(intersection1Point.z));
+        ctx.lineTo(mapX(intersection2Point.x), mapZ(intersection2Point.z));
+        ctx.lineTo(mapX(STAGE1_GOAL.x), mapZ(STAGE1_GOAL.z));
+        ctx.stroke();
 
-    // スタート地点 (緑)
-    ctx.fillStyle = '#10b981';
-    ctx.beginPath();
-    ctx.arc(mapX(startPoint.x), mapZ(startPoint.z), 7, 0, Math.PI * 2);
-    ctx.fill();
+        ctx.fillStyle = '#f8fafc';
+        ctx.font = 'bold 11px sans-serif';
+        ctx.fillText('① 左折◀', mapX(-4.5) + 8, mapZ(30) + 4);
+        ctx.fillText('② 右折▶', mapX(-80) - 52, mapZ(30) - 8);
 
-    // ゴール地点 (黄/オレンジ)
-    ctx.fillStyle = '#f59e0b';
-    ctx.beginPath();
-    ctx.arc(mapX(goalPoint.x), mapZ(goalPoint.z), 8, 0, Math.PI * 2);
-    ctx.fill();
+        ctx.fillStyle = '#10b981';
+        ctx.beginPath();
+        ctx.arc(mapX(STAGE1_START.x), mapZ(STAGE1_START.z), 7, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.fillStyle = '#f59e0b';
+        ctx.beginPath();
+        ctx.arc(mapX(STAGE1_GOAL.x), mapZ(STAGE1_GOAL.z), 8, 0, Math.PI * 2);
+        ctx.fill();
+    } else {
+        // ステージ2: スタート→①左折→②右折→③左折→ゴール（全体が収まるよう縮尺調整）
+        const mapX = (x) => 1.826 * x + 317.5;
+
+        ctx.strokeStyle = '#334155';
+        ctx.lineWidth = 11;
+        ctx.beginPath();
+        ctx.moveTo(mapX(-4.5), mapZ(160));
+        ctx.lineTo(mapX(-4.5), mapZ(30));
+        ctx.lineTo(mapX(-80), mapZ(30));
+        ctx.lineTo(mapX(-80), mapZ(-270));
+        ctx.lineTo(mapX(-152), mapZ(-270));
+        ctx.stroke();
+
+        ctx.strokeStyle = '#ef4444';
+        ctx.lineWidth = 4;
+        ctx.beginPath();
+        ctx.moveTo(mapX(STAGE1_GOAL.x), mapZ(STAGE1_GOAL.z));
+        ctx.lineTo(mapX(intersection3Point.x), mapZ(intersection3Point.z));
+        ctx.lineTo(mapX(STAGE2_GOAL.x), mapZ(STAGE2_GOAL.z));
+        ctx.stroke();
+        ctx.strokeStyle = 'rgba(239,68,68,0.4)';
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.moveTo(mapX(STAGE1_START.x), mapZ(STAGE1_START.z));
+        ctx.lineTo(mapX(intersection1Point.x), mapZ(intersection1Point.z));
+        ctx.lineTo(mapX(intersection2Point.x), mapZ(intersection2Point.z));
+        ctx.lineTo(mapX(STAGE1_GOAL.x), mapZ(STAGE1_GOAL.z));
+        ctx.stroke();
+
+        ctx.fillStyle = '#f8fafc';
+        ctx.font = 'bold 10px sans-serif';
+        ctx.fillText('③ 左折◀', mapX(-80) + 6, mapZ(-270) + 4);
+
+        ctx.fillStyle = '#38bdf8';
+        ctx.beginPath();
+        ctx.arc(mapX(STAGE1_GOAL.x), mapZ(STAGE1_GOAL.z), 6, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.fillStyle = '#f59e0b';
+        ctx.beginPath();
+        ctx.arc(mapX(STAGE2_GOAL.x), mapZ(STAGE2_GOAL.z), 8, 0, Math.PI * 2);
+        ctx.fill();
+    }
 }
 
 // ============================================================================
@@ -2797,9 +2874,7 @@ function hideManualSteerFallback() {
 // Controls
 // ============================================================================
 function initControls() {
-    const showMapBtn = document.getElementById('show-map-btn');
     const startModal = document.getElementById('start-modal');
-    const mapModal = document.getElementById('map-modal');
     const startDrivingBtn = document.getElementById('start-driving-btn');
     const toggleGyroEl = document.getElementById('toggle-gyro');
     const toggleInvertGyroEl = document.getElementById('toggle-invert-gyro');
@@ -2809,46 +2884,7 @@ function initControls() {
     const btnLeft = document.getElementById('btn-left');
     const btnRight = document.getElementById('btn-right');
     const btnFullscreen = document.getElementById('btn-fullscreen');
-    const btnFullscreenStart = document.getElementById('btn-fullscreen-start');
 
-    if (showMapBtn) {
-        showMapBtn.addEventListener('click', () => {
-            initAudio();
-            state.useGyro = toggleGyroEl ? toggleGyroEl.checked : true;
-            state.invertGyro = toggleInvertGyroEl ? toggleInvertGyroEl.checked : false;
-            if (state.useGyro) hideManualSteerFallback(); else showManualSteerFallback();
-
-            if (startModal) startModal.classList.add('hidden');
-            if (mapModal) { mapModal.classList.remove('hidden'); mapModal.classList.add('flex'); }
-            drawRouteMap();
-            requestFullscreenSafe();
-
-            // 音声案内 → 話し終えたら自動でゲーム画面へ遷移
-            speak("実際の交通規制に従って走行してください。", async () => {
-                if (state.gameFlowStarted) return;
-                state.gameFlowStarted = true;
-                if (state.useGyro) {
-                    const granted = await requestGyroPermissionIfNeeded();
-                    if (!granted) {
-                        state.useGyro = false;
-                        showManualSteerFallback();
-                    }
-                }
-                if (mapModal) mapModal.classList.add('hidden');
-                startGame();
-                setTimeout(() => {
-                    if (state.useGyro && !state.gyroReady) showManualSteerFallback();
-                }, 1500);
-            });
-        });
-    }
-
-    if (btnFullscreenStart) {
-        btnFullscreenStart.addEventListener('click', (e) => {
-            e.stopPropagation();
-            requestFullscreenSafe();
-        });
-    }
     if (btnFullscreen) {
         btnFullscreen.addEventListener('click', () => toggleFullscreen());
     }
@@ -2863,26 +2899,28 @@ function initControls() {
         startDrivingBtn.addEventListener('click', async () => {
             if (state.gameFlowStarted) return;
             state.gameFlowStarted = true;
-            if ('speechSynthesis' in window) speechSynthesis.cancel();
+
+            initAudio();
+            state.useGyro = toggleGyroEl ? toggleGyroEl.checked : true;
+            state.invertGyro = toggleInvertGyroEl ? toggleInvertGyroEl.checked : true;
+            if (state.useGyro) hideManualSteerFallback(); else showManualSteerFallback();
             requestFullscreenSafe();
 
-            if (state.useGyro) {
-                const granted = await requestGyroPermissionIfNeeded();
-                if (!granted) {
-                    state.useGyro = false;
-                    showManualSteerFallback();
+            // 音声案内 → 話し終えたら自動でゲーム画面へ遷移
+            speak("実際の交通規制に従って走行してください。", async () => {
+                if (state.useGyro) {
+                    const granted = await requestGyroPermissionIfNeeded();
+                    if (!granted) {
+                        state.useGyro = false;
+                        showManualSteerFallback();
+                    }
                 }
-            }
-
-            if (mapModal) mapModal.classList.add('hidden');
-            startGame();
-
-            // 1.5秒経ってもジャイロイベントが来ない場合は自動でフォールバック表示
-            setTimeout(() => {
-                if (state.useGyro && !state.gyroReady) {
-                    showManualSteerFallback();
-                }
-            }, 1500);
+                if (startModal) startModal.classList.add('hidden');
+                startGame();
+                setTimeout(() => {
+                    if (state.useGyro && !state.gyroReady) showManualSteerFallback();
+                }, 1500);
+            });
         });
     }
 
@@ -3001,7 +3039,7 @@ function startCountdown() {
             textEl.className = "text-8xl sm:text-9xl font-black text-emerald-400 drop-shadow-[0_10px_20px_rgba(0,0,0,0.8)] tracking-wider animate-bounce";
             triggerCountdownBeep(true);
             showDialogue("👨‍🍳 飲食店の店長", "「いってらっしゃい！」", 3000);
-            speak("いってらっしゃい！");
+            speak("いってらっしゃい！", null, 'male');
 
             state.isCountingDown = false;
             state.isPlaying = true;
@@ -3025,7 +3063,7 @@ function startGame() {
     showDialogue("👨‍🍳 飲食店の店長", "「料理を大事に運んでくれ！」", 4000);
     speak("料理を大事に運んでくれ。", () => {
         startCountdown();
-    });
+    }, 'male');
 }
 
 function resetGame() {
@@ -3059,8 +3097,6 @@ function resetGame() {
     if (customerBubble) customerBubble.classList.add('hidden');
     const warnEl = document.getElementById('hud-warning');
     if (warnEl) warnEl.classList.add('opacity-0');
-    const turnNoticeEl = document.getElementById('hud-turn-notice');
-    if (turnNoticeEl) turnNoticeEl.classList.add('hidden');
 
     startGame();
 }
@@ -3142,15 +3178,20 @@ function updatePhysics() {
 
     // コースアウト判定: 歩道を走るのはOK。建物・道路の3Dモデルの範囲を
     // 大きく超えて「街の外」まで行った場合のみ違反とする（歩道分の余裕を持たせて緩和）。
+    // ステージ2で追加された3つ目の曲がり角（road4, 東西方向）にも対応。
     let isOffRoad = false;
     if (nextPos.z > 38) {
         if (nextPos.x < -34 || nextPos.x > 28) isOffRoad = true;
-    } else if (nextPos.z <= 38 && nextPos.z >= 22) {
+    } else if (nextPos.z >= 22) {
         if (nextPos.x > 14 || nextPos.x < -99) isOffRoad = true;
-    } else if (nextPos.z < 22) {
+    } else if (nextPos.z >= -262) {
         if (nextPos.x < -114 || nextPos.x > -46) isOffRoad = true;
+    } else if (nextPos.z >= -286) {
+        if (nextPos.x < -168 || nextPos.x > -46) isOffRoad = true;
+    } else {
+        isOffRoad = true;
     }
-    if (nextPos.z > 216 || nextPos.z < -256) isOffRoad = true;
+    if (nextPos.z > 216) isOffRoad = true;
 
     if (isOffRoad) {
         triggerGameOver("街の3Dモデルの範囲外まで行ってしまいました！", false);
@@ -3388,7 +3429,6 @@ function triggerGameOver(causeText, isCollision = true) {
 function finishDelivery() {
     state.isPlaying = false;
     playEngineSound(0);
-    difficultyLevel++;
 
     const elapsed = (performance.now() - state.startTime) / 1000;
     const mins = Math.floor(elapsed / 60).toString().padStart(2, '0');
@@ -3401,8 +3441,21 @@ function finishDelivery() {
     const setText = (id, text) => { const el = document.getElementById(id); if (el) el.innerText = text; };
     const setClass = (id, cls) => { const el = document.getElementById(id); if (el) el.className = cls; };
 
+    const hud = document.getElementById('hud-overlay');
+    if (hud) hud.classList.add('hidden');
+    const customerBubble = document.getElementById('customer-bubble');
+    if (customerBubble) customerBubble.classList.add('hidden');
+
+    if (currentStage < maxStage) {
+        // 中間ステージクリア：結果は見せず、そのまま次のステージのマップへ
+        difficultyLevel++;
+        advanceToNextStage();
+        return;
+    }
+
+    difficultyLevel++;
     setText('result-emoji', "🎉");
-    setText('result-title', "配達完了！");
+    setText('result-title', "全ステージ配達完了！");
     setClass('result-title', "text-2xl sm:text-3xl font-black text-amber-400 mb-1");
     setText('result-sub', "熱々の料理を最高の状態で届けられました！");
     setText('res-cause-label', "配達結果");
@@ -3412,13 +3465,40 @@ function finishDelivery() {
     setText('res-rank', `RANK ${rank}`);
     setClass('res-rank', "text-2xl sm:text-3xl font-black text-amber-400");
 
-    const hud = document.getElementById('hud-overlay');
-    if (hud) hud.classList.add('hidden');
+    const retryBtnLabel = document.getElementById('retry-btn-label');
+    if (retryBtnLabel) retryBtnLabel.innerText = "もう一度配達する";
+
     const resModal = document.getElementById('result-modal');
     if (resModal) resModal.classList.remove('hidden');
+}
 
-    const customerBubble = document.getElementById('customer-bubble');
-    if (customerBubble) customerBubble.classList.add('hidden');
+// 次のステージへ進む：ゴール地点を新しい配達先に切り替え、街の続きへ案内する
+function advanceToNextStage() {
+    currentStage++;
+
+    startPoint = goalPoint.clone();
+    goalPoint = STAGE2_GOAL.clone();
+    customerPos = STAGE2_CUSTOMER.clone();
+
+    if (scooterGroup) {
+        scooterGroup.position.copy(startPoint);
+        scooterGroup.rotation.set(0, 0, 0);
+    }
+    state.scooterRot = 0;
+    state.speed = 0;
+    state.currentSteer = 0;
+    state.targetSteer = 0;
+    state.gameFlowStarted = false;
+
+    for (const obs of dynamicObstacles) {
+        if (obs.mesh && obs.mesh.parent) obs.mesh.parent.remove(obs.mesh);
+    }
+    buildObstacles();
+
+    const startModal = document.getElementById('start-modal');
+    if (startModal) { startModal.classList.remove('hidden'); startModal.classList.add('flex'); }
+    drawRouteMap();
+    showDialogue("👨‍🍳 飲食店の店長", `「よし、続けて${currentStage}件目も頼むぞ！」`, 3500);
 }
 
 // ============================================================================
@@ -3513,8 +3593,8 @@ function onWindowResize() {
     camera.aspect = window.innerWidth / window.innerHeight;
     camera.updateProjectionMatrix();
     renderer.setSize(window.innerWidth, window.innerHeight);
-    const mapModal = document.getElementById('map-modal');
-    if (mapModal && !mapModal.classList.contains('hidden')) {
+    const startModalEl = document.getElementById('start-modal');
+    if (startModalEl && !startModalEl.classList.contains('hidden')) {
         drawRouteMap();
     }
 }
