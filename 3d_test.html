@@ -1508,12 +1508,13 @@ function addSignalLampSet(group, centerX, y, z, scale) {
     return lampRefs;
 }
 
-function createTrafficLightMesh(x, z, rotY = 0, streetName) {
+// faceRotY: 信号が「向く」向き（運転者から見て正面に●●●が見える向き）。
+// atan2(dx, dz) で「運転者がいる方向」を渡す。例: 運転者が+Z側から来るなら 0、+X側なら PI/2。
+function createTrafficLightMesh(x, z, faceRotY = 0, streetName) {
     const group = new THREE.Group();
     group.position.set(x, 0, z);
-    group.rotation.y = rotY;
 
-    // 支柱
+    // 支柱（円柱なので回転の影響を受けない）
     const pole = new THREE.Mesh(
         new THREE.CylinderGeometry(0.14, 0.17, 6.6, 12),
         MAT.poleMetal
@@ -1522,6 +1523,12 @@ function createTrafficLightMesh(x, z, rotY = 0, streetName) {
     pole.castShadow = true;
     group.add(pole);
 
+    // ランプ一式・プレート類は「頭部」としてまとめ、faceRotYだけで
+    // 「どちらに張り出すか」と「どちらを向くか」の両方を一括して正しく決める
+    const head = new THREE.Group();
+    head.rotation.y = faceRotY;
+    group.add(head);
+
     // 信号機本体（横型・大型）
     const box = new THREE.Mesh(
         new THREE.BoxGeometry(3.7, 1.3, 0.32),
@@ -1529,18 +1536,18 @@ function createTrafficLightMesh(x, z, rotY = 0, streetName) {
     );
     box.position.set(0.95, 6.1, 0);
     box.castShadow = true;
-    group.add(box);
+    head.add(box);
 
     // メインの信号（大きく・見やすく）
-    const mainLamps = addSignalLampSet(group, 0.95, 6.1, 0.42, 1.0);
+    const mainLamps = addSignalLampSet(head, 0.95, 6.1, 0.42, 1.0);
     signalLamps.push({ blue: mainLamps.blue, yellow: mainLamps.yellow, red: mainLamps.red });
 
     // 近づいたときに見やすいよう、低めの位置にも同じ信号を複製表示（ミニ信号）
     const nearBox = new THREE.Mesh(new THREE.BoxGeometry(2.1, 0.75, 0.2),
         new THREE.MeshStandardMaterial({ color: 0x1a1f28, roughness: 0.4, metalness: 0.3 }));
     nearBox.position.set(0.95, 3.55, 0);
-    group.add(nearBox);
-    const nearLamps = addSignalLampSet(group, 0.95, 3.55, 0.30, 0.56);
+    head.add(nearBox);
+    const nearLamps = addSignalLampSet(head, 0.95, 3.55, 0.30, 0.56);
     signalLamps[signalLamps.length - 1].blueNear = nearLamps.blue;
     signalLamps[signalLamps.length - 1].yellowNear = nearLamps.yellow;
     signalLamps[signalLamps.length - 1].redNear = nearLamps.red;
@@ -1548,16 +1555,16 @@ function createTrafficLightMesh(x, z, rotY = 0, streetName) {
     // 歩行者用信号機（低い位置、赤/青ピクトグラム）
     const pedBox = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.6, 0.18), new THREE.MeshStandardMaterial({ color: 0x1a1f28, roughness: 0.4 }));
     pedBox.position.set(0, 2.35, 0.22);
-    group.add(pedBox);
+    head.add(pedBox);
     const pedWalkTex = createPedestrianSignalTexture(true);
     const pedStopTex = createPedestrianSignalTexture(false);
     const pedWalk = new THREE.Mesh(new THREE.PlaneGeometry(0.5, 0.5), new THREE.MeshBasicMaterial({ map: pedWalkTex }));
     pedWalk.position.set(0, 2.35, 0.32);
-    group.add(pedWalk);
+    head.add(pedWalk);
     const pedStop = new THREE.Mesh(new THREE.PlaneGeometry(0.5, 0.5), new THREE.MeshBasicMaterial({ map: pedStopTex }));
     pedStop.position.set(0, 2.35, 0.325);
     pedStop.visible = false;
-    group.add(pedStop);
+    head.add(pedStop);
     signalLamps[signalLamps.length - 1].pedWalk = pedWalk;
     signalLamps[signalLamps.length - 1].pedStop = pedStop;
 
@@ -1567,7 +1574,7 @@ function createTrafficLightMesh(x, z, rotY = 0, streetName) {
         const namePlate = new THREE.Mesh(new THREE.PlaneGeometry(1.1, 0.55), new THREE.MeshBasicMaterial({ map: nameTex }));
         namePlate.position.set(-1.0, 5.35, 0.05);
         namePlate.rotation.y = Math.PI;
-        group.add(namePlate);
+        head.add(namePlate);
     }
 
     scene.add(group);
@@ -2381,11 +2388,11 @@ function buildJapaneseCity() {
     // 交差点1 & 2 横断歩道と信号機
     createCrosswalk(-4.5, 42, 16, 6, true);
     createCrosswalk(-14.5, 30, 6, 16, false);
-    createTrafficLightMesh(-13.0, 19, Math.PI / 2, '共栄通り');
+    createTrafficLightMesh(-13.0, 19, 0, '共栄通り');
 
     createCrosswalk(-70, 30, 6, 16, false);
     createCrosswalk(-80, 18, 16, 6, true);
-    createTrafficLightMesh(-90.0, 19, 0, '弥生坂');
+    createTrafficLightMesh(-90.0, 19, Math.PI / 2, '弥生坂');
 
     // 歩道・縁石（道路1・道路3沿い、メインの走行区間）
     createSidewalkStrip(-14.0, 116, 3.0, 195, true);
