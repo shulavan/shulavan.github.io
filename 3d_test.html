@@ -2381,11 +2381,11 @@ function buildJapaneseCity() {
     // 交差点1 & 2 横断歩道と信号機
     createCrosswalk(-4.5, 42, 16, 6, true);
     createCrosswalk(-14.5, 30, 6, 16, false);
-    createTrafficLightMesh(-12.0, 42, Math.PI / 2, '共栄通り');
+    createTrafficLightMesh(-13.0, 19, Math.PI / 2, '共栄通り');
 
     createCrosswalk(-70, 30, 6, 16, false);
     createCrosswalk(-80, 18, 16, 6, true);
-    createTrafficLightMesh(-70.0, 20, 0, '弥生坂');
+    createTrafficLightMesh(-90.0, 19, 0, '弥生坂');
 
     // 歩道・縁石（道路1・道路3沿い、メインの走行区間）
     createSidewalkStrip(-14.0, 116, 3.0, 195, true);
@@ -2468,7 +2468,7 @@ function buildJapaneseCity() {
 
     addLaneMarkings(-116, -270, 90, 8, false, [[-88, -68]]);
     createCrosswalk(-80, -262, 16, 6, true);
-    createTrafficLightMesh(-89.0, -278, 0, '共栄通り西');
+    createTrafficLightMesh(-90.0, -279, 0, '共栄通り西');
     createGuardrailSegment(-73.2, -256, 9, 0);
 
     createSidewalkStrip(-116, -259.5, 3.0, 90, false);
@@ -2505,6 +2505,11 @@ function buildJapaneseCity() {
 function buildObstacles() {
     dynamicObstacles = [];
     parkedCars = [];
+
+    if (currentStage >= 2) {
+        buildStage2Obstacles();
+        return;
+    }
 
     // 路上駐車車両（走行車線の左側路肩寄りに配置して対向車線と被らないように修正）
     const parkedDefs = [
@@ -2546,7 +2551,8 @@ function buildObstacles() {
             speed: (0.22 + Math.random() * 0.06) * (1 + difficultyLevel * 0.09),
             direction: new THREE.Vector3(0, 0, 1),
             radius: 1.8,
-            warned: false
+            warned: false,
+            resetZ: -150, loopZ: 170
         });
     }
 
@@ -2588,6 +2594,106 @@ function buildObstacles() {
         triggered: false,
         triggerDist: Math.max(26, 40 - difficultyLevel * 2),
         speed: 0.075,
+        direction: new THREE.Vector3(1, 0, 0),
+        radius: 0.7
+    });
+}
+
+// ステージ2専用の障害物配置（道路3の続き＋道路4）。ステージ1より明確に難しくする。
+function buildStage2Obstacles() {
+    const speedMul = 1 + difficultyLevel * 0.09;
+
+    // 路上駐車車両
+    const parkedDefs = [
+        { x: -73.0, z: -235, rot: 0, type: 'van', color: 0xb45309 },
+        { x: -128, z: -262.5, rot: Math.PI / 2, type: 'sedan', color: 0x1e293b }
+    ];
+    for (let p of parkedDefs) {
+        const pCar = createVehicleMesh(p.type, p.color, { isParked: true });
+        pCar.position.set(p.x, 0, p.z);
+        pCar.rotation.y = p.rot;
+        scene.add(pCar);
+        parkedCars.push(pCar);
+        dynamicObstacles.push({ type: 'parked', mesh: pCar, radius: 2.1 });
+    }
+
+    // 対向車（道路3の続き：対向車線 x=-74.5、北向きに走行）
+    const oncomingDefsA = [
+        { type: 'taxi', color: 0x0f1115 },
+        { type: 'sedan', color: 0xdc2626 },
+        { type: 'keitruck', color: 0xf1f5f9 }
+    ];
+    for (let i = 0; i < 3; i++) {
+        const def = oncomingDefsA[i];
+        const carGroup = createVehicleMesh(def.type, def.color, {});
+        const startZ = -228 - i * 15;
+        carGroup.position.set(-74.5, 0, startZ);
+        scene.add(carGroup);
+        dynamicObstacles.push({
+            type: 'car', mesh: carGroup,
+            speed: (0.24 + Math.random() * 0.07) * speedMul,
+            direction: new THREE.Vector3(0, 0, 1),
+            radius: 1.8, warned: false,
+            resetZ: -260, loopZ: -220
+        });
+    }
+
+    // 対向車（道路4：対向車線 z=-264、東向きに走行）
+    const oncomingDefsB = [
+        { type: 'sedan', color: 0x2563eb },
+        { type: 'van', color: 0x0d9488 }
+    ];
+    for (let i = 0; i < 2; i++) {
+        const def = oncomingDefsB[i];
+        const carGroup = createVehicleMesh(def.type, def.color, {});
+        carGroup.rotation.y = Math.PI / 2;
+        const startX = -95 - i * 35;
+        carGroup.position.set(startX, 0, -264);
+        scene.add(carGroup);
+        dynamicObstacles.push({
+            type: 'car', mesh: carGroup,
+            speed: (0.24 + Math.random() * 0.07) * speedMul,
+            direction: new THREE.Vector3(1, 0, 0),
+            radius: 1.8, warned: false,
+            resetX: -155, loopX: -78
+        });
+    }
+
+    // 歩行者
+    for (let i = 0; i < 3; i++) {
+        const ped = createPedestrianMesh({});
+        const baseZ = -228 - i * 16;
+        ped.position.set(i % 2 === 0 ? -73 : -87, 0, baseZ);
+        scene.add(ped);
+        dynamicObstacles.push({
+            type: 'pedestrian', mesh: ped,
+            speed: 0.032,
+            direction: new THREE.Vector3(0, 0, i % 2 === 0 ? -1 : 1),
+            radius: 0.9,
+            patrolMin: baseZ - 22, patrolMax: baseZ + 22
+        });
+    }
+
+    // 飛び出す子供（道路4沿い）
+    const kid1 = createPedestrianMesh({ isKid: true, shirtColor: 0x2563eb });
+    kid1.position.set(-118, 0, -258);
+    scene.add(kid1);
+    dynamicObstacles.push({
+        type: 'kid', mesh: kid1, triggered: false,
+        triggerDist: Math.max(34, 50 - difficultyLevel * 3),
+        speed: 0.125,
+        direction: new THREE.Vector3(0, 0, -1),
+        radius: 0.8
+    });
+
+    // 犬（道路3の続き沿い）
+    const dog = createAnimalMesh('dog');
+    dog.position.set(-87, 0, -240);
+    scene.add(dog);
+    dynamicObstacles.push({
+        type: 'dog', mesh: dog, triggered: false,
+        triggerDist: Math.max(24, 36 - difficultyLevel * 2),
+        speed: 0.085,
         direction: new THREE.Vector3(1, 0, 0),
         radius: 0.7
     });
@@ -3206,9 +3312,17 @@ function updatePhysics() {
         }
     }
 
-    // 赤信号無視チェック
+    // 赤信号無視チェック（3か所すべての交差点で判定）
     if (state.signalState === 2) {
         if (scooterGroup.position.z > 42 && nextPos.z <= 42 && Math.abs(nextPos.x - (-4.5)) < 8.0) {
+            triggerGameOver("赤信号を無視して交差点に進入しました！", false);
+            return;
+        }
+        if (scooterGroup.position.x > -70 && nextPos.x <= -70 && Math.abs(nextPos.z - 30) < 8.0) {
+            triggerGameOver("赤信号を無視して交差点に進入しました！", false);
+            return;
+        }
+        if (scooterGroup.position.z > -262 && nextPos.z <= -262 && Math.abs(nextPos.x - (-80)) < 8.0) {
             triggerGameOver("赤信号を無視して交差点に進入しました！", false);
             return;
         }
@@ -3234,7 +3348,15 @@ function updateDynamicObstacles(playerPos) {
     for (let obs of dynamicObstacles) {
         if (obs.type === 'car') {
             obs.mesh.position.addScaledVector(obs.direction, obs.speed);
-            if (obs.mesh.position.z > 170) obs.mesh.position.z = -150;
+            if (obs.loopX !== undefined) {
+                if (obs.direction.x > 0 && obs.mesh.position.x > obs.loopX) obs.mesh.position.x = obs.resetX;
+                else if (obs.direction.x < 0 && obs.mesh.position.x < obs.loopX) obs.mesh.position.x = obs.resetX;
+            } else {
+                const resetZ = obs.resetZ !== undefined ? obs.resetZ : -150;
+                const loopZ = obs.loopZ !== undefined ? obs.loopZ : 170;
+                if (obs.direction.z > 0 && obs.mesh.position.z > loopZ) obs.mesh.position.z = resetZ;
+                else if (obs.direction.z < 0 && obs.mesh.position.z < loopZ) obs.mesh.position.z = resetZ;
+            }
 
             if (obs.mesh.userData.wheels) {
                 const spin = obs.speed * 2.6;
@@ -3264,7 +3386,11 @@ function updateDynamicObstacles(playerPos) {
         }
         else if (obs.type === 'pedestrian') {
             obs.mesh.position.addScaledVector(obs.direction, obs.speed);
-            if (Math.abs(obs.mesh.position.z) > 200) obs.direction.negate();
+            if (obs.patrolMin !== undefined) {
+                if (obs.mesh.position.z > obs.patrolMax || obs.mesh.position.z < obs.patrolMin) obs.direction.negate();
+            } else if (Math.abs(obs.mesh.position.z) > 200) {
+                obs.direction.negate();
+            }
 
             const dist = obs.mesh.position.distanceTo(playerPos);
             if (dist < obs.radius) {
