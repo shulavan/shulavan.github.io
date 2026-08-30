@@ -1,0 +1,1357 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>3D Bus Jam</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Font Awesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Three.js (3D Engine) -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <!-- Tween.js -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tween.js/18.6.4/tween.umd.js"></script>
+    
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Fredoka:wght@600;700;900&family=Noto+Sans+JP:wght@700;900&display=swap');
+        :root{--bg:#060916;--panel:#101632;--panel2:#0a1027;--line:rgba(126,140,255,.25);--cyan:#67e8f9;--purple:#8b7cff;--gold:#ffd85a}
+        *{box-sizing:border-box;user-select:none;-webkit-user-select:none;touch-action:manipulation}
+        html,body{width:100%;height:100%;margin:0}
+        body{overflow:hidden;font-family:'Fredoka','Noto Sans JP',sans-serif;background:radial-gradient(circle at 50% -5%,rgba(89,78,210,.30),transparent 35%),radial-gradient(circle at 15% 65%,rgba(23,177,210,.08),transparent 28%),linear-gradient(180deg,#03050c,#080b19 48%,#050712)}
+        #game-container{position:relative;width:100%;max-width:480px;height:100vh;margin:auto;overflow:hidden;isolation:isolate;background:radial-gradient(circle at 50% 25%,rgba(78,70,190,.11),transparent 34%),linear-gradient(180deg,#0d1128,#080c1e 65%,#050712);box-shadow:0 0 0 1px rgba(132,145,255,.12),0 25px 80px rgba(0,0,0,.55)}
+        #game-container:before{content:"";position:absolute;inset:0;z-index:-2;pointer-events:none;background:linear-gradient(rgba(119,132,255,.025) 1px,transparent 1px),linear-gradient(90deg,rgba(119,132,255,.025) 1px,transparent 1px);background-size:28px 28px;mask-image:linear-gradient(to bottom,#000,transparent 88%)}
+        #game-container:after{content:"";position:absolute;width:330px;height:330px;left:50%;top:55%;transform:translate(-50%,-50%);border-radius:50%;background:radial-gradient(circle,rgba(79,70,229,.13),transparent 68%);filter:blur(8px);pointer-events:none;z-index:-1}
+        .top-header{position:relative;z-index:20;display:flex;align-items:center;padding:11px 15px 9px;background:linear-gradient(180deg,rgba(12,16,38,.99),rgba(12,16,38,.86));border-bottom:1px solid rgba(121,132,255,.12)}
+        .top-header:after{content:"";position:absolute;left:18%;right:18%;bottom:-1px;height:1px;background:linear-gradient(90deg,transparent,rgba(103,232,249,.4),rgba(139,124,255,.5),transparent)}
+        .header-left{display:flex;align-items:center;gap:8px}.icon-button{width:43px;height:43px;border-radius:15px}.icon-button{border:1px solid rgba(125,139,255,.38);color:white;background:linear-gradient(145deg,#303a83,#151c49);box-shadow:inset 0 1px 0 rgba(255,255,255,.14),0 8px 18px rgba(0,0,0,.25)}
+        .money-pill{min-width:116px;padding:8px 12px;border-radius:15px;display:flex;align-items:center;justify-content:center;gap:8px;background:linear-gradient(145deg,#171d42,#090d21);border:1px solid rgba(126,140,255,.24);box-shadow:inset 0 1px 0 rgba(255,255,255,.06)}
+        .icon-button:active{transform:translateY(2px)}
+        #passenger-card{position:relative;z-index:20;margin:6px 12px 3px;padding:9px;border-radius:20px;background:linear-gradient(145deg,rgba(25,32,72,.94),rgba(10,15,37,.96));border:1px solid rgba(107,124,255,.27);box-shadow:inset 0 1px 0 rgba(255,255,255,.055),0 12px 28px rgba(0,0,0,.25)}
+        #passenger-card:before{content:"BUS STOP";position:absolute;right:13px;top:-7px;padding:2px 7px;border-radius:7px;font-size:7px;font-weight:900;letter-spacing:.13em;color:#79e9ff;background:#0b1128;border:1px solid rgba(103,232,249,.25)}
+        .passenger-heading{display:flex;align-items:center;justify-content:space-between;min-height:24px;padding:0 4px 6px}.passenger-title{display:flex;align-items:center;gap:7px;color:#dce4ff;font-size:12px;font-weight:900}.passenger-title i{color:#8d96ff;filter:drop-shadow(0 0 7px rgba(139,124,255,.45))}.remaining-badge{padding:4px 8px;border-radius:9px;color:#aab6e8;background:rgba(5,9,24,.72);border:1px solid rgba(119,132,255,.16);font-size:8px;font-weight:900}
+        #passenger-line{position:relative;min-height:58px;padding:6px 8px;display:flex;align-items:center;justify-content:flex-end;gap:8px;overflow:hidden;border-radius:14px;background:linear-gradient(180deg,rgba(5,9,24,.94),rgba(9,13,30,.78));border:1px solid rgba(102,117,236,.18);box-shadow:inset 0 2px 12px rgba(0,0,0,.28)}
+        #passenger-line:after{content:"";position:absolute;left:0;right:0;bottom:0;height:1px;background:linear-gradient(90deg,transparent,rgba(103,232,249,.35),transparent)}
+        .bus-stop-marker{flex:0 0 42px;width:42px;height:45px;position:relative;display:flex;align-items:center;justify-content:center;border-radius:12px;background:linear-gradient(145deg,#26326c,#101736);border:1px solid rgba(103,232,249,.34);box-shadow:inset 0 1px 0 rgba(255,255,255,.08),0 0 16px rgba(34,211,238,.08);font-size:29px;z-index:3}
+        .person-icon{display:inline-flex;flex-direction:column;align-items:center;justify-content:center;width:23px;height:29px;position:relative}.person-head{width:9px;height:9px;background:currentColor;border-radius:50%;margin-bottom:2px;box-shadow:0 1px 4px rgba(0,0,0,.42),0 0 5px currentColor}.person-body{width:0;height:0;border-left:7px solid transparent;border-right:7px solid transparent;border-bottom:13px solid currentColor;filter:drop-shadow(0 1px 3px rgba(0,0,0,.42))}
+        /* 乗客が画面右端に謎の帯として出る問題を防止。歩行中だけfixedレイヤーに描画。 */
+        .walking-passenger{position:fixed!important;left:0;top:0;width:28px;height:34px;display:flex;align-items:center;justify-content:center;z-index:10000;pointer-events:none;filter:drop-shadow(0 4px 7px rgba(0,0,0,.45));will-change:left,top,transform;transform:translateZ(0)}
+        .walking-passenger .person-icon{width:23px;height:29px}
+        .queue-advance{animation:queueAdvance .34s cubic-bezier(.22,.75,.25,1) both}
+        @keyframes queueAdvance{0%{transform:translateX(-20px);opacity:.72}100%{transform:translateX(0);opacity:1}}
+        #three-stage{position:relative;flex:1 1 auto;min-height:0;margin-top:1px;overflow:hidden}#three-stage:before{content:"";position:absolute;inset:0;pointer-events:none;z-index:0;background:radial-gradient(ellipse at 50% 20%,rgba(79,70,229,.14),transparent 38%),radial-gradient(ellipse at 50% 70%,rgba(34,211,238,.05),transparent 34%),linear-gradient(180deg,transparent,rgba(3,6,16,.48) 100%)}#three-container{position:absolute;inset:0;width:100%;height:100%;cursor:pointer;z-index:2}
+        .pop-in{animation:popIn .3s cubic-bezier(.175,.885,.32,1.275)}@keyframes popIn{0%{transform:scale(.3);opacity:0}100%{transform:scale(1);opacity:1}}.no-scrollbar::-webkit-scrollbar{display:none}.no-scrollbar{-ms-overflow-style:none;scrollbar-width:none}
+        @media(max-width:360px){.top-header{padding-left:10px;padding-right:10px}.money-pill{min-width:100px}#passenger-card{margin-left:8px;margin-right:8px}#passenger-line{gap:6px}.bus-stop-marker{flex-basis:35px;width:35px}}
+    </style>
+</head>
+<body class="flex items-center justify-center min-h-screen">
+
+<div id="game-container" class="w-full shadow-2xl overflow-hidden flex flex-col justify-between">
+    
+    <!-- プレミアムゲームUI -->
+    <div class="top-header">
+        <div class="header-left">
+            <button id="btn-sound" class="icon-button flex items-center justify-center" aria-label="サウンド"><i class="fa-solid fa-volume-high"></i></button>
+            <div class="money-pill">
+                <i class="fa-solid fa-wallet text-amber-300"></i>
+                <div class="leading-none text-left">
+                    <span class="block text-[8px] font-black tracking-wider text-indigo-300 mb-[1px]">所持金</span>
+                    <span id="money-count" class="text-white font-black text-sm">￥100,000</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="passenger-card">
+        <div class="passenger-heading">
+            <div class="passenger-title"><i class="fa-solid fa-users"></i><span>待合所の列</span><span class="remaining-badge"><span id="passenger-count">0</span> 人残り</span></div>
+        </div>
+        <div id="passenger-line" class="no-scrollbar"></div>
+    </div>
+
+    <div id="three-stage"><div id="three-container"></div></div>
+
+    <!-- モーダル: 起動時ルール説明 -->
+    <div id="modal-intro" class="absolute inset-0 bg-black/80 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
+        <div class="bg-[#141833] border-2 border-cyan-400/80 rounded-3xl p-6 text-center max-w-xs w-full shadow-2xl pop-in">
+            <div class="w-16 h-16 bg-cyan-500/20 rounded-2xl flex items-center justify-center mx-auto mb-3 border border-cyan-400/50">
+                <i class="fa-solid fa-bus text-3xl text-cyan-300"></i>
+            </div>
+            <h2 class="text-lg font-black text-white mb-3">江戸川 GoGoバス乗車</h2>
+            <div class="text-xs text-indigo-200 mb-6 leading-relaxed text-left space-y-1.5">
+                <p>・乗客は同じ色のバスにしか乗れません</p>
+                <p>・車庫のバスをタップすると乗り場へ移動します</p>
+                <p>・満員になったバスは自動で出発進行！</p>
+            </div>
+            <button id="btn-intro-close" class="w-full py-3 btn-game-orange text-white font-black rounded-xl text-lg border border-amber-300/40">
+                閉じる
+            </button>
+        </div>
+    </div>
+
+    <!-- モーダル: ゲームオーバー -->
+    <div id="modal-gameover" class="absolute inset-0 bg-black/80 z-50 flex items-center justify-center p-4 hidden backdrop-blur-sm">
+        <div class="bg-[#141833] border-2 border-red-500/80 rounded-3xl p-6 text-center max-w-xs w-full shadow-2xl pop-in">
+            <div class="w-16 h-16 bg-red-500/20 rounded-2xl flex items-center justify-center mx-auto mb-3 border border-red-500/50">
+                <i class="fa-solid fa-triangle-exclamation text-3xl text-red-500"></i>
+            </div>
+            <h2 class="text-2xl font-black text-white mb-1">GAME OVER</h2>
+            <p class="text-xs text-indigo-200 mb-6">駐車場（🅿️）が満車になりました！</p>
+            <button id="btn-retry" class="w-full py-3 btn-game-orange text-white font-black rounded-xl text-lg border border-amber-300/40">
+                もう一度挑戦
+            </button>
+        </div>
+    </div>
+
+    <!-- モーダル: ステージクリア -->
+    <div id="modal-clear" class="absolute inset-0 bg-black/80 z-50 flex items-center justify-center p-4 hidden backdrop-blur-sm">
+        <div class="bg-[#141833] border-2 border-emerald-400/80 rounded-3xl p-6 text-center max-w-xs w-full shadow-2xl pop-in">
+            <div class="w-16 h-16 bg-emerald-500/20 rounded-2xl flex items-center justify-center mx-auto mb-3 border border-emerald-400/50 animate-bounce">
+                <i class="fa-solid fa-trophy text-3xl text-amber-400"></i>
+            </div>
+            <h2 class="text-2xl font-black text-white mb-1">STAGE CLEAR!</h2>
+            <p class="text-xs text-indigo-200 mb-3">全員無事に乗車完了！</p>
+
+            <div id="clear-breakdown" class="text-left bg-black/25 rounded-xl px-3 py-1 mb-3 divide-y divide-white/5"></div>
+
+            <div id="clear-total-count" class="text-[11px] text-indigo-300 mb-1">合計 0人</div>
+            <div class="text-amber-300 font-black text-xl mb-6 flex items-center justify-center gap-1.5">
+                <i class="fa-solid fa-wallet"></i><span id="clear-total-amount">￥0</span>
+            </div>
+
+            <button id="btn-clear-close" class="w-full py-3 btn-game-orange text-white font-black rounded-xl text-lg border border-amber-300/40">
+                閉じる
+            </button>
+        </div>
+    </div>
+
+</div>
+
+<script>
+const COLOR_PALETTE = {
+    red:    { name: '赤', hex: 0xef4444, css: '#ef4444' },
+    blue:   { name: '青', hex: 0x3b82f6, css: '#3b82f6' },
+    green:  { name: '緑', hex: 0x22c55e, css: '#22c55e' },
+    yellow: { name: '黄', hex: 0xeab308, css: '#eab308' },
+    pink:   { name: 'ピンク', hex: 0xec4899, css: '#ec4899' },
+    purple: { name: '紫', hex: 0xa855f7, css: '#a855f7' }
+};
+
+// 六角形グリッド（ボードゲーム「ヘクス」のような6方向移動）用の定義。
+// 軸座標(q,r)のオフセットと、その方向を向かせるためのYの回転角(ラジアン)。
+const HEX_DIRS = {
+    SE: { dq: 0,  dr: 1,  angle: 0 },
+    E:  { dq: 1,  dr: 0,  angle: Math.PI / 3 },
+    NE: { dq: 1,  dr: -1, angle: 2 * Math.PI / 3 },
+    NW: { dq: 0,  dr: -1, angle: Math.PI },
+    W:  { dq: -1, dr: 0,  angle: 4 * Math.PI / 3 },
+    SW: { dq: -1, dr: 1,  angle: 5 * Math.PI / 3 }
+};
+const HEX_DIR_NAMES = Object.keys(HEX_DIRS);
+
+// 軸座標(q,r)を実座標(x,z)へ変換（車庫のハニカムタイルと完全に同じ計算式）
+function hexToWorld(q, r, hexRadius) {
+    return {
+        x: 1.5 * hexRadius * q,
+        z: Math.sqrt(3) * hexRadius * (q / 2 + r)
+    };
+}
+
+// 中心からの輪の数(ringCount)で定義される六角形ボードの、有効なマスか判定
+function isValidHexCell(q, r, ringCount) {
+    if (q < -ringCount || q > ringCount) return false;
+    const rMin = Math.max(-ringCount, -q - ringCount);
+    const rMax = Math.min(ringCount, -q + ringCount);
+    return r >= rMin && r <= rMax;
+}
+
+// 隙間・重なりのない正六角形の板ジオメトリを、頂点座標を直接計算して生成する
+// （回転行列やShape/Extrudeの向きの解釈に依存せず、hexToWorldの計算式=(R cosθ, R sinθ)と
+//   頂点座標を完全に一致させることで、タイル同士の辺のズレを確実に防ぐ）
+function createFlatHexGeometry(radius, thickness) {
+    const halfT = thickness / 2;
+    const top = [];
+    const bottom = [];
+    for (let i = 0; i < 6; i++) {
+        const angle = (Math.PI / 3) * i;
+        const x = radius * Math.cos(angle);
+        const z = radius * Math.sin(angle);
+        top.push(new THREE.Vector3(x, halfT, z));
+        bottom.push(new THREE.Vector3(x, -halfT, z));
+    }
+
+    const positions = [];
+    const pushTri = (a, b, c) => {
+        positions.push(a.x, a.y, a.z, b.x, b.y, b.z, c.x, c.y, c.z);
+    };
+
+    // 上面・底面（扇形三角形分割）
+    for (let i = 1; i < 5; i++) {
+        pushTri(top[0], top[i], top[i + 1]);
+        pushTri(bottom[0], bottom[i + 1], bottom[i]);
+    }
+    // 側面（6枚の長方形を三角形2枚ずつで構成）
+    for (let i = 0; i < 6; i++) {
+        const ni = (i + 1) % 6;
+        pushTri(top[i], bottom[i], bottom[ni]);
+        pushTri(top[i], bottom[ni], top[ni]);
+    }
+
+    const geom = new THREE.BufferGeometry();
+    geom.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+    geom.computeVertexNormals();
+    return geom;
+}
+
+class SoundManager {
+    constructor() {
+        this.ctx = null;
+        this.muted = false;
+    }
+    init() {
+        if (!this.ctx) {
+            this.ctx = new (window.AudioContext || window.webkitAudioContext)();
+        }
+    }
+    play(type) {
+        if (this.muted) return;
+        this.init();
+        if (!this.ctx) return;
+
+        const now = this.ctx.currentTime;
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+        osc.connect(gain);
+        gain.connect(this.ctx.destination);
+
+        if (type === 'tap') {
+            osc.frequency.setValueAtTime(400, now);
+            osc.frequency.exponentialRampToValueAtTime(800, now + 0.08);
+            gain.gain.setValueAtTime(0.2, now);
+            gain.gain.linearRampToValueAtTime(0.01, now + 0.08);
+            osc.start(now);
+            osc.stop(now + 0.08);
+        } else if (type === 'drive') {
+            osc.type = 'sawtooth';
+            osc.frequency.setValueAtTime(160, now);
+            osc.frequency.exponentialRampToValueAtTime(320, now + 0.25);
+            gain.gain.setValueAtTime(0.15, now);
+            gain.gain.linearRampToValueAtTime(0.01, now + 0.25);
+            osc.start(now);
+            osc.stop(now + 0.25);
+        } else if (type === 'crash') {
+            osc.type = 'square';
+            osc.frequency.setValueAtTime(180, now);
+            osc.frequency.exponentialRampToValueAtTime(40, now + 0.2);
+            gain.gain.setValueAtTime(0.4, now);
+            gain.gain.linearRampToValueAtTime(0.01, now + 0.2);
+            osc.start(now);
+            osc.stop(now + 0.2);
+        } else if (type === 'block') {
+            osc.type = 'square';
+            osc.frequency.setValueAtTime(120, now);
+            osc.frequency.setValueAtTime(80, now + 0.08);
+            gain.gain.setValueAtTime(0.2, now);
+            gain.gain.linearRampToValueAtTime(0.01, now + 0.15);
+            osc.start(now);
+            osc.stop(now + 0.15);
+        } else if (type === 'board') {
+            osc.frequency.setValueAtTime(523.25, now);
+            osc.frequency.setValueAtTime(659.25, now + 0.05);
+            gain.gain.setValueAtTime(0.2, now);
+            gain.gain.linearRampToValueAtTime(0.01, now + 0.12);
+            osc.start(now);
+            osc.stop(now + 0.12);
+        } else if (type === 'depart') {
+            osc.type = 'triangle';
+            osc.frequency.setValueAtTime(300, now);
+            osc.frequency.exponentialRampToValueAtTime(600, now + 0.35);
+            gain.gain.setValueAtTime(0.3, now);
+            gain.gain.linearRampToValueAtTime(0.01, now + 0.4);
+            osc.start(now);
+            osc.stop(now + 0.4);
+        } else if (type === 'clear') {
+            [523.25, 659.25, 783.99, 1046.50].forEach((freq, idx) => {
+                const o = this.ctx.createOscillator();
+                const g = this.ctx.createGain();
+                o.connect(g);
+                g.connect(this.ctx.destination);
+                o.frequency.setValueAtTime(freq, now + idx * 0.1);
+                g.gain.setValueAtTime(0.2, now + idx * 0.1);
+                g.gain.linearRampToValueAtTime(0.01, now + idx * 0.1 + 0.2);
+                o.start(now + idx * 0.1);
+                o.stop(now + idx * 0.1 + 0.25);
+            });
+        } else if (type === 'fail') {
+            osc.type = 'sawtooth';
+            osc.frequency.setValueAtTime(250, now);
+            osc.frequency.linearRampToValueAtTime(100, now + 0.4);
+            gain.gain.setValueAtTime(0.3, now);
+            gain.gain.linearRampToValueAtTime(0.01, now + 0.4);
+            osc.start(now);
+            osc.stop(now + 0.4);
+        } else if (type === 'horn') {
+            // クラクション: 2音を重ねた「プッ プー」を2回鳴らす
+            const freqs = [370, 466];
+            const beepDur = 0.16;
+            const gapDur = 0.10;
+            for (let rep = 0; rep < 2; rep++) {
+                const startT = now + rep * (beepDur + gapDur);
+                freqs.forEach(freq => {
+                    const o = this.ctx.createOscillator();
+                    const g = this.ctx.createGain();
+                    o.type = 'sawtooth';
+                    o.connect(g);
+                    g.connect(this.ctx.destination);
+                    o.frequency.setValueAtTime(freq, startT);
+                    g.gain.setValueAtTime(0.0001, startT);
+                    g.gain.linearRampToValueAtTime(0.22, startT + 0.02);
+                    g.gain.setValueAtTime(0.22, startT + beepDur - 0.03);
+                    g.gain.linearRampToValueAtTime(0.0001, startT + beepDur);
+                    o.start(startT);
+                    o.stop(startT + beepDur + 0.02);
+                });
+            }
+        }
+    }
+
+    // テキストを男性寄りの声で読み上げる（対応ブラウザのみ）
+    speak(text) {
+        if (this.muted) return;
+        if (!('speechSynthesis' in window)) return;
+        const synth = window.speechSynthesis;
+        let spoken = false;
+
+        const buildAndSpeak = () => {
+            if (spoken) return;
+            spoken = true;
+            const utter = new SpeechSynthesisUtterance(text);
+            utter.lang = 'ja-JP';
+            utter.pitch = 0.8;
+            utter.rate = 1.05;
+
+            const voices = synth.getVoices();
+            const jaVoices = voices.filter(v => (v.lang || '').toLowerCase().startsWith('ja'));
+            const pool = jaVoices.length ? jaVoices : voices;
+            const maleVoice = pool.find(v => /male|man|otoya|ichiro|takumi|男性/i.test(v.name || ''));
+            if (maleVoice) utter.voice = maleVoice;
+            else if (pool.length) utter.voice = pool[0];
+
+            synth.speak(utter);
+        };
+
+        if (synth.getVoices().length > 0) {
+            buildAndSpeak();
+        } else {
+            synth.onvoiceschanged = buildAndSpeak;
+            setTimeout(buildAndSpeak, 300);
+        }
+    }
+}
+
+const sounds = new SoundManager();
+
+class Game3D {
+    constructor() {
+        this.container = document.getElementById('three-container');
+        this.currentLevel = 1;
+        this.money = 100000;
+        this.maxSlots = 3;
+        this.hexRadius = 0.67;
+        this.ringCount = 4;
+
+        this.buses = [];
+        this.slots = new Array(this.maxSlots).fill(null);
+        this.slotPositions = [];
+        this.passengers = [];
+        this.stageBoardedCounts = {};
+        
+        this.isBoardingAnimating = false;
+        this.isBusMoving = false;
+
+        this.init3DScene();
+        this.initEvents();
+        this.loadLevel(this.currentLevel);
+
+        this.animate();
+    }
+
+    init3DScene() {
+        const width = this.container.clientWidth;
+        const height = this.container.clientHeight;
+
+        this.scene = new THREE.Scene();
+        this.scene.background = null;
+        this.scene.fog = new THREE.FogExp2(0x080c1d, 0.012);
+
+        const aspect = width / height;
+        const d = 8.5;
+        this.camera = new THREE.OrthographicCamera(-d * aspect, d * aspect, d, -d, 1, 1000);
+        
+        // 画面の真中央にぴったり配置される視点アングル
+        this.camera.position.set(14, 16, 14);
+        this.camera.lookAt(0, -0.2, 0);
+
+        this.renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+        this.renderer.setSize(width, height);
+        this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+        this.renderer.shadowMap.enabled = true;
+        this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+        this.renderer.outputEncoding = THREE.sRGBEncoding;
+        this.container.appendChild(this.renderer.domElement);
+
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.85);
+        this.scene.add(ambientLight);
+
+        const dirLight = new THREE.DirectionalLight(0xffffff, 0.85);
+        dirLight.position.set(10, 20, 10);
+        dirLight.castShadow = true;
+        dirLight.shadow.mapSize.width = 1024;
+        dirLight.shadow.mapSize.height = 1024;
+        const sd = 10;
+        dirLight.shadow.camera.left = -sd;
+        dirLight.shadow.camera.right = sd;
+        dirLight.shadow.camera.top = sd;
+        dirLight.shadow.camera.bottom = -sd;
+        this.scene.add(dirLight);
+
+        this.createParkingFloor();
+        this.createHorizontalTopBoardingArea();
+
+        this.raycaster = new THREE.Raycaster();
+        this.mouse = new THREE.Vector2();
+    }
+
+    // マス目（六角形グリッド）を画面の真中央へ配置
+    createParkingFloor() {
+        this.floorGroup = new THREE.Group();
+
+        const hexRadius = this.hexRadius;
+        const ringCount = this.ringCount;
+
+        // 敷き詰めたタイル全体の外形も同じ向きの六角形になるよう、一回り大きな土台を敷く
+        const baseRadius = hexRadius * (Math.sqrt(3) * ringCount + 1.1);
+        const baseGeom = createFlatHexGeometry(baseRadius, 0.12);
+        const baseMat = new THREE.MeshStandardMaterial({ color: 0x0c1030, roughness: 0.7, metalness: 0.15, side: THREE.DoubleSide });
+        const baseMesh = new THREE.Mesh(baseGeom, baseMat);
+        baseMesh.position.set(0, -2.34, 0.5);
+        baseMesh.receiveShadow = true;
+        this.floorGroup.add(baseMesh);
+
+        // 六角形タイルはすべて同一ジオメトリを共有（頂点位相を完全に統一し、辺を確実に一致させる）
+        const tileGeom = createFlatHexGeometry(hexRadius, 0.1);
+        const matEven = new THREE.MeshStandardMaterial({ color: 0x222846, roughness: 0.6, metalness: 0.1, side: THREE.DoubleSide });
+        const matOdd = new THREE.MeshStandardMaterial({ color: 0x181d36, roughness: 0.6, metalness: 0.1, side: THREE.DoubleSide });
+
+        for (let q = -ringCount; q <= ringCount; q++) {
+            const rMin = Math.max(-ringCount, -q - ringCount);
+            const rMax = Math.min(ringCount, -q + ringCount);
+            for (let r = rMin; r <= rMax; r++) {
+                // 六角形（マス目）は隙間・重なりなく隣接するハニカム座標で配置
+                const isEven = (q + r) % 2 === 0;
+                const tile = new THREE.Mesh(tileGeom, isEven ? matEven : matOdd);
+                const pos = hexToWorld(q, r, hexRadius);
+                tile.position.set(pos.x, -2.2, pos.z + 0.5);
+                tile.receiveShadow = true;
+                this.floorGroup.add(tile);
+            }
+        }
+        this.scene.add(this.floorGroup);
+    }
+
+    // 乗客列直下に駐車枠（🅿️）を六角形の枠で水平に並べる計算
+    createHorizontalTopBoardingArea() {
+        this.slotPositions = [];
+        
+        const rightVec = new THREE.Vector3(-0.7071, 0, 0.7071);
+        const slotSpacing = 2.15;
+        const totalWidth = (this.maxSlots - 1) * slotSpacing;
+        const startOffset = -totalWidth / 2;
+
+        // 乗車待ちの人の「真下」に駐車枠（🅿️）を配置
+        // 画面上では待合所の直下、バス盤面の直前になる高さにする
+        const centerPos = new THREE.Vector3(0, 2.8, -2.8);
+        const hexRotation = Math.PI / 6;
+        const slotRadius = 0.95;
+
+        for (let i = 0; i < this.maxSlots; i++) {
+            const offsetDist = startOffset + i * slotSpacing;
+            const slotPos = centerPos.clone().addScaledVector(rightVec, offsetDist);
+
+            // 停車枠全体を「六角形」の枠にする
+            const slotGeom = new THREE.CylinderGeometry(slotRadius, slotRadius, 0.05, 6);
+            const slotMat = new THREE.MeshStandardMaterial({ color: 0x111936, roughness: 0.30, metalness: 0.30 });
+            const slotMesh = new THREE.Mesh(slotGeom, slotMat);
+            slotMesh.position.copy(slotPos);
+            slotMesh.rotation.y = hexRotation;
+            slotMesh.receiveShadow = true;
+            this.scene.add(slotMesh);
+
+            const wireGeom = new THREE.CylinderGeometry(slotRadius + 0.08, slotRadius + 0.08, 0.08, 6);
+            const wireMat = new THREE.MeshBasicMaterial({ color: 0x7167ff, wireframe: true, transparent: true, opacity: 0.95 });
+            const wireMesh = new THREE.Mesh(wireGeom, wireMat);
+            wireMesh.position.copy(slotPos);
+            wireMesh.position.y += 0.02;
+            wireMesh.rotation.y = hexRotation;
+            this.scene.add(wireMesh);
+
+            // 駐車枠の中央に大きな「🅿️」を表示
+            const pCanvas = document.createElement('canvas');
+            pCanvas.width = 256;
+            pCanvas.height = 256;
+            const pCtx = pCanvas.getContext('2d');
+            pCtx.clearRect(0, 0, 256, 256);
+            pCtx.textAlign = 'center';
+            pCtx.textBaseline = 'middle';
+            pCtx.font = '190px "Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",sans-serif';
+            pCtx.fillText('🅿️', 128, 136);
+
+            const pTexture = new THREE.CanvasTexture(pCanvas);
+            pTexture.needsUpdate = true;
+            const pMat = new THREE.MeshBasicMaterial({
+                map: pTexture,
+                transparent: true,
+                depthWrite: false
+            });
+            const pMesh = new THREE.Mesh(
+                new THREE.PlaneGeometry(0.7, 0.7),
+                pMat
+            );
+            pMesh.position.copy(slotPos);
+            pMesh.position.y += 0.055;
+            pMesh.rotation.x = -Math.PI / 2;
+            pMesh.renderOrder = 5;
+            this.scene.add(pMesh);
+
+            this.slotPositions.push({ 
+                x: slotPos.x, 
+                y: slotPos.y, 
+                z: slotPos.z, 
+                rotY: Math.PI / 4 
+            });
+        }
+    }
+
+    createBus3DModel(colorHex, direction, capacity) {
+        const busGroup = new THREE.Group();
+
+        const width = 0.82;
+        const height = 0.65;
+        const length = 1.25 + (capacity - 4) * 0.2;
+
+        const bodyGeom = new THREE.BoxGeometry(width, height, length);
+        const bodyMat = new THREE.MeshStandardMaterial({
+            color: colorHex,
+            roughness: 0.3,
+            metalness: 0.2
+        });
+        const bodyMesh = new THREE.Mesh(bodyGeom, bodyMat);
+        bodyMesh.position.y = height / 2 + 0.1;
+        bodyMesh.castShadow = true;
+        bodyMesh.receiveShadow = true;
+        busGroup.add(bodyMesh);
+
+        // 前面ガラス & ヘッドライト (+Z方向が正面)
+        const glassMat = new THREE.MeshStandardMaterial({ color: 0x0f172a, roughness: 0.1, metalness: 0.8 });
+        
+        const frontGlass = new THREE.Mesh(new THREE.BoxGeometry(width * 0.85, height * 0.45, 0.1), glassMat);
+        frontGlass.position.set(0, height / 2 + 0.18, length / 2 + 0.01);
+        busGroup.add(frontGlass);
+
+        const lightGeom = new THREE.CylinderGeometry(0.09, 0.09, 0.05, 16);
+        const lightMat = new THREE.MeshStandardMaterial({
+            color: 0xfff380,
+            emissive: 0xffea00,
+            emissiveIntensity: 0.8,
+            roughness: 0.2
+        });
+
+        const leftLight = new THREE.Mesh(lightGeom, lightMat);
+        leftLight.rotation.x = Math.PI / 2;
+        leftLight.position.set(-width * 0.28, height * 0.22, length / 2 + 0.02);
+        busGroup.add(leftLight);
+
+        const rightLight = new THREE.Mesh(lightGeom, lightMat);
+        rightLight.rotation.x = Math.PI / 2;
+        rightLight.position.set(width * 0.28, height * 0.22, length / 2 + 0.02);
+        busGroup.add(rightLight);
+
+        const sideGlass = new THREE.Mesh(new THREE.BoxGeometry(width + 0.02, height * 0.35, length * 0.65), glassMat);
+        sideGlass.position.set(0, height / 2 + 0.18, -0.05);
+        busGroup.add(sideGlass);
+
+        const mahjongPlateGeom = new THREE.BoxGeometry(width * 0.75, 0.04, length * 0.85);
+        const mahjongPlateMat = new THREE.MeshStandardMaterial({ color: 0xf8fafc, roughness: 0.2 });
+        const mahjongPlate = new THREE.Mesh(mahjongPlateGeom, mahjongPlateMat);
+        mahjongPlate.position.set(0, height + 0.12, 0);
+        busGroup.add(mahjongPlate);
+
+        const dotMeshes = [];
+        const dotGeom = new THREE.CylinderGeometry(0.08, 0.08, 0.03, 16);
+        const dotMatActive = new THREE.MeshStandardMaterial({ color: colorHex, roughness: 0.3 });
+        const dotMatEmpty = new THREE.MeshStandardMaterial({ color: 0x334155, roughness: 0.8 });
+
+        const rows = Math.ceil(capacity / 2);
+        const rowGap = 0.35; 
+        const startZ = -(rows - 1) * rowGap / 2;
+
+        for (let i = 0; i < capacity; i++) {
+            const r = Math.floor(i / 2);
+            const c = i % 2;
+            const dot = new THREE.Mesh(dotGeom, c === 0 ? dotMatActive : dotMatEmpty);
+            dot.position.set((c - 0.5) * 0.35, height + 0.15, startZ + r * rowGap);
+            busGroup.add(dot);
+            dotMeshes.push(dot);
+        }
+
+        const wheelGeom = new THREE.CylinderGeometry(0.13, 0.13, 0.12, 16);
+        const wheelMat = new THREE.MeshStandardMaterial({ color: 0x111111, roughness: 0.8 });
+        const wheelPositions = [
+            [-width / 2, 0.13, length / 3],
+            [width / 2, 0.13, length / 3],
+            [-width / 2, 0.13, -length / 3],
+            [width / 2, 0.13, -length / 3]
+        ];
+        wheelPositions.forEach(pos => {
+            const wheel = new THREE.Mesh(wheelGeom, wheelMat);
+            wheel.rotation.z = Math.PI / 2;
+            wheel.position.set(pos[0], pos[1], pos[2]);
+            wheel.castShadow = true;
+            busGroup.add(wheel);
+        });
+
+        busGroup.rotation.y = HEX_DIRS[direction].angle;
+
+        busGroup.userData.dotMeshes = dotMeshes;
+        busGroup.userData.dotMatActive = dotMatActive;
+        busGroup.userData.dotMatEmpty = dotMatEmpty;
+
+        return busGroup;
+    }
+
+    updateBusDotDisplay(bus) {
+        if (!bus.mesh || !bus.mesh.userData.dotMeshes) return;
+        const dots = bus.mesh.userData.dotMeshes;
+        dots.forEach((dot, idx) => {
+            if (idx < bus.passengerCount) {
+                dot.material = bus.mesh.userData.dotMatActive;
+                dot.scale.set(1.2, 1.2, 1.2);
+            } else {
+                dot.material = bus.mesh.userData.dotMatEmpty;
+                dot.scale.set(1.0, 1.0, 1.0);
+            }
+        });
+    }
+
+    initEvents() {
+        window.addEventListener('resize', () => {
+            const width = this.container.clientWidth;
+            const height = this.container.clientHeight;
+            const aspect = width / height;
+            const d = 8.5;
+            this.camera.left = -d * aspect;
+            this.camera.right = d * aspect;
+            this.camera.top = d;
+            this.camera.bottom = -d;
+            this.camera.updateProjectionMatrix();
+            this.renderer.setSize(width, height);
+        });
+
+        const handleTap = (e) => {
+            e.preventDefault();
+            if (this.isBusMoving || this.isBoardingAnimating) return;
+            sounds.init();
+
+            const rect = this.renderer.domElement.getBoundingClientRect();
+            const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+            const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+
+            this.mouse.x = ((clientX - rect.left) / rect.width) * 2 - 1;
+            this.mouse.y = -((clientY - rect.top) / rect.height) * 2 + 1;
+
+            this.raycaster.setFromCamera(this.mouse, this.camera);
+            const intersects = this.raycaster.intersectObjects(this.scene.children, true);
+
+            if (intersects.length > 0) {
+                let obj = intersects[0].object;
+                while (obj && !obj.userData.busData && obj.parent) {
+                    obj = obj.parent;
+                }
+
+                if (obj && obj.userData.busData) {
+                    this.tryMoveBus(obj.userData.busData);
+                }
+            }
+        };
+
+        this.renderer.domElement.addEventListener('click', handleTap);
+        this.renderer.domElement.addEventListener('touchstart', handleTap, { passive: false });
+
+        document.getElementById('btn-retry').addEventListener('click', () => {
+            sounds.play('tap');
+            document.getElementById('modal-gameover').classList.add('hidden');
+            this.loadLevel(this.currentLevel);
+        });
+
+        document.getElementById('btn-sound').addEventListener('click', () => {
+            sounds.muted = !sounds.muted;
+            document.getElementById('btn-sound').innerHTML = sounds.muted ? 
+                '<i class="fa-solid fa-volume-xmark text-red-300"></i>' : 
+                '<i class="fa-solid fa-volume-high"></i>';
+        });
+    }
+
+    loadLevel(level) {
+        this.isBusMoving = false;
+        this.isBoardingAnimating = false;
+        
+        this.slots.forEach(b => {
+            if (b && b.mesh) this.scene.remove(b.mesh);
+        });
+        this.buses.forEach(b => {
+            if (b.mesh) this.scene.remove(b.mesh);
+        });
+
+        this.slots = new Array(this.maxSlots).fill(null);
+        this.buses = [];
+
+        const availableColors = ['red', 'blue', 'green', 'yellow', 'pink', 'purple'];
+        const colorCount = Math.min(3 + Math.floor((level - 1) / 2), availableColors.length);
+        const activeColors = availableColors.slice(0, colorCount);
+
+        this.stageBoardedCounts = {};
+        activeColors.forEach(color => { this.stageBoardedCounts[color] = 0; });
+        
+        const possibleCapacities = [4, 6, 8];
+        const tempColorPool = [];
+
+        activeColors.forEach(color => {
+            for (let i = 0; i < 2; i++) {
+                const cap = possibleCapacities[Math.floor(Math.random() * possibleCapacities.length)];
+                this.buses.push({
+                    id: Math.random().toString(36).substring(2, 9),
+                    color: color,
+                    gq: 0, gr: 0,
+                    dir: 'NE',
+                    passengerCount: 0,
+                    capacity: cap,
+                    mesh: null
+                });
+
+                for (let p = 0; p < cap; p++) {
+                    tempColorPool.push(color);
+                }
+            }
+        });
+
+        this.passengers = tempColorPool.sort(() => Math.random() - 0.5);
+        this.placeBuses3D();
+        this.renderPassengersUI();
+    }
+
+    // バス同士が絶対に向かい合わない安全配置
+    // 同一直線上で進行方向が逆になる組み合わせを禁止する。
+    getDirVector(dir) {
+        return HEX_DIRS[dir];
+    }
+
+    isHeadToHeadConflict(candidate, others) {
+        const d = this.getDirVector(candidate.dir);
+        const cQ = candidate.gq + 0.5 * d.dq;
+        const cR = candidate.gr + 0.5 * d.dr;
+
+        return others.some(other => {
+            const od = this.getDirVector(other.dir);
+            // 正反対向きでなければ「向かい合う」ことはない
+            if (d.dq !== -od.dq || d.dr !== -od.dr) return false;
+
+            const oQ = other.gq + 0.5 * od.dq;
+            const oR = other.gr + 0.5 * od.dr;
+            const vQ = oQ - cQ;
+            const vR = oR - cR;
+
+            // 同一直線上か（外積=0で判定。六角形6方向すべてに対応）
+            const cross = d.dq * vR - d.dr * vQ;
+            if (Math.abs(cross) > 0.001) return false;
+
+            const ahead = vQ * d.dq + vR * d.dr > 0;
+            if (!ahead) return false;
+
+            // バスの占有セルが重ならないことは別途確認済み。
+            // ここでは距離に関係なく同一直線上の正対を禁止して、後から詰む配置も防ぐ。
+            return true;
+        });
+    }
+
+    placeBuses3D() {
+        const ringCount = this.ringCount;
+        const hexRadius = this.hexRadius;
+
+        // 生成し直しを許可して、全バスが配置できる盤面だけ採用する。
+        for (let boardAttempt = 0; boardAttempt < 120; boardAttempt++) {
+            const grid = new Map();
+            const placed = [];
+            let success = true;
+
+            // いったん既存Meshを消す
+            this.buses.forEach(bus => { if (bus.mesh) this.scene.remove(bus.mesh); bus.mesh = null; });
+
+            // 配置順を毎回シャッフルして偏りを減らす
+            const order = [...this.buses].sort(() => Math.random() - 0.5);
+
+            for (const bus of order) {
+                const candidates = [];
+
+                for (const dir of HEX_DIR_NAMES) {
+                    const d = this.getDirVector(dir);
+                    for (let q = -ringCount; q <= ringCount; q++) {
+                        const rMin = Math.max(-ringCount, -q - ringCount);
+                        const rMax = Math.min(ringCount, -q + ringCount);
+                        for (let r = rMin; r <= rMax; r++) {
+                            const q2 = q + d.dq;
+                            const r2 = r + d.dr;
+                            if (!isValidHexCell(q2, r2, ringCount)) continue;
+                            if (grid.has(`${q},${r}`) || grid.has(`${q2},${r2}`)) continue;
+                            const candidate = { gq: q, gr: r, dir };
+                            if (this.isHeadToHeadConflict(candidate, placed)) continue;
+                            candidates.push(candidate);
+                        }
+                    }
+                }
+
+                // 少しランダムにして毎回同じ盤面にならないようにする
+                candidates.sort(() => Math.random() - 0.5);
+                if (!candidates.length) { success = false; break; }
+
+                const chosen = candidates[0];
+                const d = this.getDirVector(chosen.dir);
+                bus.gq = chosen.gq;
+                bus.gr = chosen.gr;
+                bus.dir = chosen.dir;
+                grid.set(`${chosen.gq},${chosen.gr}`, bus);
+                grid.set(`${chosen.gq + d.dq},${chosen.gr + d.dr}`, bus);
+                placed.push(bus);
+
+                const colorObj = COLOR_PALETTE[bus.color];
+                const mesh = this.createBus3DModel(colorObj.hex, chosen.dir, bus.capacity);
+                const p1 = hexToWorld(chosen.gq, chosen.gr, hexRadius);
+                const p2 = hexToWorld(chosen.gq + d.dq, chosen.gr + d.dr, hexRadius);
+                mesh.position.set((p1.x + p2.x) / 2, -2.0, (p1.z + p2.z) / 2 + 0.5);
+                mesh.userData.busData = bus;
+                bus.mesh = mesh;
+                this.scene.add(mesh);
+                this.updateBusDotDisplay(bus);
+            }
+
+            if (success && placed.length === this.buses.length) return;
+        }
+
+        // 万一のフォールバック。通常ここには到達しない。
+        console.warn('安全なバス配置を120回試行しました。簡易配置へフォールバックします。');
+        const span = ringCount * 2 + 1;
+        this.buses.forEach((bus, i) => {
+            const dir = HEX_DIR_NAMES[i % HEX_DIR_NAMES.length];
+            const d = this.getDirVector(dir);
+            const q = Math.max(-ringCount, Math.min(ringCount, (i % span) - ringCount));
+            const rMin = Math.max(-ringCount, -q - ringCount);
+            const rMax = Math.min(ringCount, -q + ringCount);
+            const r = Math.max(rMin, Math.min(rMax, Math.floor(i / span) - ringCount));
+            bus.gq = q; bus.gr = r; bus.dir = dir;
+            const mesh = this.createBus3DModel(COLOR_PALETTE[bus.color].hex, dir, bus.capacity);
+            const p1 = hexToWorld(q, r, hexRadius);
+            const p2 = hexToWorld(q + d.dq, r + d.dr, hexRadius);
+            mesh.position.set((p1.x + p2.x) / 2, -2.0, (p1.z + p2.z) / 2 + 0.5);
+            mesh.userData.busData = bus; bus.mesh = mesh; this.scene.add(mesh); this.updateBusDotDisplay(bus);
+        });
+    }
+
+    tryMoveBus(bus) {
+        if (this.isBusMoving || this.isBoardingAnimating) return;
+
+        const checkResult = this.canBusExit3D(bus);
+
+        if (checkResult.canExit) {
+            const freeSlotIdx = this.getFreeSlotIndex();
+            if (freeSlotIdx === -1) {
+                sounds.play('block');
+                this.shakeBus(bus);
+                return;
+            }
+
+            this.isBusMoving = true;
+            sounds.play('drive');
+            this.animateBusToBoardingSlot(bus, freeSlotIdx);
+        } else {
+            this.isBusMoving = true;
+            this.animateBusCollisionAndReturn(bus, checkResult.blockingBus, checkResult.distSteps);
+        }
+    }
+
+    canBusExit3D(bus) {
+        const d = this.getDirVector(bus.dir);
+        const headQ = bus.gq + d.dq;
+        const headR = bus.gr + d.dr;
+
+        let checkQ = headQ + d.dq;
+        let checkR = headR + d.dr;
+        let step = 1;
+
+        while (isValidHexCell(checkQ, checkR, this.ringCount)) {
+            const blockingBus = this.buses.find(other => {
+                if (other.id === bus.id) return false;
+
+                const od = this.getDirVector(other.dir);
+                const occupy1 = (checkQ === other.gq && checkR === other.gr);
+                const occupy2 = (checkQ === other.gq + od.dq && checkR === other.gr + od.dr);
+
+                return occupy1 || occupy2;
+            });
+
+            if (blockingBus) {
+                return { canExit: false, blockingBus: blockingBus, distSteps: step };
+            }
+
+            checkQ += d.dq;
+            checkR += d.dr;
+            step++;
+        }
+
+        return { canExit: true, blockingBus: null, distSteps: step };
+    }
+
+    // 衝突時の正確な停止（めり込み防止）＆振動＆安全バック
+    animateBusCollisionAndReturn(bus, blockingBus, distSteps) {
+        const startPos = { x: bus.mesh.position.x, z: bus.mesh.position.z };
+
+        const angle = HEX_DIRS[bus.dir].angle;
+        const dx = Math.sin(angle);
+        const dz = Math.cos(angle);
+        const stepDist = this.hexRadius * Math.sqrt(3);
+
+        const moveDist = (distSteps - 0.25) * stepDist;
+        const targetX = startPos.x + dx * moveDist;
+        const targetZ = startPos.z + dz * moveDist;
+
+        new TWEEN.Tween(bus.mesh.position)
+            .to({ x: targetX, z: targetZ }, 120)
+            .easing(TWEEN.Easing.Quadratic.In)
+            .onComplete(() => {
+                sounds.play('crash');
+                this.shakeTwoBuses(bus, blockingBus);
+
+                setTimeout(() => {
+                    new TWEEN.Tween(bus.mesh.position)
+                        .to({ x: startPos.x, z: startPos.z }, 160)
+                        .easing(TWEEN.Easing.Quadratic.Out)
+                        .onComplete(() => {
+                            this.isBusMoving = false;
+                        })
+                        .start();
+                }, 150);
+            })
+            .start();
+    }
+
+    shakeTwoBuses(bus1, bus2) {
+        const orig1 = { x: bus1.mesh.position.x, z: bus1.mesh.position.z };
+        const orig2 = { x: bus2.mesh.position.x, z: bus2.mesh.position.z };
+
+        new TWEEN.Tween(bus1.mesh.position)
+            .to({ x: orig1.x + (Math.random() - 0.5) * 0.15, z: orig1.z + (Math.random() - 0.5) * 0.15 }, 30)
+            .yoyo(true)
+            .repeat(4)
+            .onComplete(() => {
+                bus1.mesh.position.set(orig1.x, bus1.mesh.position.y, orig1.z);
+            })
+            .start();
+
+        if (bus2 && bus2.mesh) {
+            new TWEEN.Tween(bus2.mesh.position)
+                .to({ x: orig2.x + (Math.random() - 0.5) * 0.15, z: orig2.z + (Math.random() - 0.5) * 0.15 }, 30)
+                .yoyo(true)
+                .repeat(4)
+                .onComplete(() => {
+                    bus2.mesh.position.set(orig2.x, bus2.mesh.position.y, orig2.z);
+                })
+                .start();
+        }
+    }
+
+    // バス入庫アニメーション
+    // ①タップしたバスは向きを変えずに前進して画面外へ
+    // ②画面外右側へ抜ける
+    // ③乗客列と駐車場の間を「右→左」に横向き前進で再登場
+    // ④駐車枠の手前で時計回りに旋回し、前向きのままP枠へ前進駐車
+    animateBusToBoardingSlot(bus, slotIdx) {
+        this.slots[slotIdx] = bus;
+        this.buses = this.buses.filter(b => b.id !== bus.id);
+
+        const slotPos = this.slotPositions[slotIdx];
+        const mesh = bus.mesh;
+
+        // 画面右端の外側まで十分に出すための座標
+        const OFF_RIGHT = 13.0;
+
+        // 現在のバスの進行方向ベクトル（6方向のヘクス角度から算出）
+        const exitAngle = HEX_DIRS[bus.dir].angle;
+        const dx = Math.sin(exitAngle);
+        const dz = Math.cos(exitAngle);
+
+        // フェーズ1: 現在の向きのまま、まず画面外まで前進
+        const forwardDistance = 12.0;
+        const exitTarget = {
+            x: mesh.position.x + dx * forwardDistance,
+            z: mesh.position.z + dz * forwardDistance
+        };
+
+        new TWEEN.Tween(mesh.position)
+            .to({ x: exitTarget.x, z: exitTarget.z }, 520)
+            .easing(TWEEN.Easing.Cubic.In)
+            .onComplete(() => {
+
+                // フェーズ2:
+                // いったん完全に右側の画面外へ移動。
+                // 駐車場より少し手前の「乗客列との間」の走行レーンを使用。
+                const laneZ = slotPos.z + 0.85;
+
+                new TWEEN.Tween(mesh.position)
+                    .to({ x: OFF_RIGHT, z: laneZ }, 350)
+                    .easing(TWEEN.Easing.Cubic.InOut)
+                    .onComplete(() => {
+
+                        // フェーズ3:
+                        // 右側画面外から左へ、横向きのまま前進して再登場
+                        // +X → -X がバスの正面になるように180度回転
+                        new TWEEN.Tween(mesh.rotation)
+                            .to({ y: Math.PI / 2 }, 220)
+                            .easing(TWEEN.Easing.Quadratic.Out)
+                            .onComplete(() => {
+
+                                // 画面外右側から左方向へ一直線に前進
+                                new TWEEN.Tween(mesh.position)
+                                    .to({ x: slotPos.x + 2.1, z: laneZ }, 700)
+                                    .easing(TWEEN.Easing.Cubic.InOut)
+                                    .onComplete(() => {
+
+                                        // フェーズ4:
+                                        // 駐車枠の手前で時計回りに90度旋回。
+                                        // +X方向を向いていたバスを、駐車枠の向きへ。
+                                        new TWEEN.Tween(mesh.rotation)
+                                            .to({ y: slotPos.rotY }, 260)
+                                            .easing(TWEEN.Easing.Quadratic.InOut)
+                                            .onComplete(() => {
+
+                                                // フェーズ5: バックではなく「前進」でP枠へ
+                                                new TWEEN.Tween(mesh.position)
+                                                    .to({
+                                                        x: slotPos.x,
+                                                        y: slotPos.y,
+                                                        z: slotPos.z
+                                                    }, 420)
+                                                    .easing(TWEEN.Easing.Cubic.Out)
+                                                    .onComplete(() => {
+                                                        this.isBusMoving = false;
+                                                        this.processPassengerBoardingSequence();
+                                                    })
+                                                    .start();
+                                            })
+                                            .start();
+                                    })
+                                    .start();
+                            })
+                            .start();
+                    })
+                    .start();
+            })
+            .start();
+    }
+
+    async processPassengerBoardingSequence() {
+        if (this.isBoardingAnimating) return;
+        this.isBoardingAnimating = true;
+
+        while (this.passengers.length > 0) {
+            const currentPassengerColor = this.passengers[0];
+            const targetBusIndex = this.slots.findIndex(b => b && b.color === currentPassengerColor && b.passengerCount < b.capacity);
+
+            if (targetBusIndex === -1) break;
+
+            const bus = this.slots[targetBusIndex];
+
+            // 先頭の実際の乗客を、待合列からバスまで歩かせる。
+            await this.animateSinglePassengerWalking(currentPassengerColor, targetBusIndex);
+
+            // 到着してから先頭を1人だけ削除。残りの列は前進アニメーション。
+            this.passengers.shift();
+            bus.passengerCount++;
+            this.stageBoardedCounts[currentPassengerColor] = (this.stageBoardedCounts[currentPassengerColor] || 0) + 1;
+            this.updateBusDotDisplay(bus);
+            sounds.play('board');
+            this.renderPassengersUI(true);
+
+            if (bus.passengerCount >= bus.capacity) {
+                await new Promise(r => setTimeout(r, 200));
+                sounds.play('depart');
+
+                // 乗客一人につき￥200の運賃を所持金に加算
+                this.money += bus.passengerCount * 200;
+                document.getElementById('money-count').innerText = this.formatMoney(this.money);
+
+                await new Promise(resolve => {
+                    const departStartX = bus.mesh.position.x;
+                    const departStartZ = bus.mesh.position.z;
+                    const startAngle = bus.mesh.rotation.y;
+
+                    // まず前進 → 時計回り90度 → その向きのまま前進。
+                    new TWEEN.Tween(bus.mesh.position)
+                        .to({ x: departStartX + 0.45, z: departStartZ + 0.45 }, 160)
+                        .easing(TWEEN.Easing.Quadratic.Out)
+                        .onComplete(() => {
+                            const endAngle = startAngle + Math.PI / 2;
+                            new TWEEN.Tween(bus.mesh.rotation)
+                                .to({ y: endAngle }, 220)
+                                .easing(TWEEN.Easing.Quadratic.InOut)
+                                .onComplete(() => {
+                                    // Three.jsの+Z正面を基準に、回転後の正面方向へ進む。
+                                    const forwardDistance = 12.0;
+                                    const targetX = bus.mesh.position.x + Math.sin(endAngle) * forwardDistance;
+                                    const targetZ = bus.mesh.position.z + Math.cos(endAngle) * forwardDistance;
+                                    new TWEEN.Tween(bus.mesh.position)
+                                        .to({ x: targetX, z: targetZ }, 520)
+                                        .easing(TWEEN.Easing.Cubic.In)
+                                        .onComplete(() => {
+                                            this.scene.remove(bus.mesh);
+                                            this.slots[targetBusIndex] = null;
+                                            resolve();
+                                        })
+                                        .start();
+                                })
+                                .start();
+                        })
+                        .start();
+                });
+            }
+        }
+
+        this.isBoardingAnimating = false;
+        this.checkGameStatus();
+    }
+
+    // 先頭の乗客本人を待合列からバスまで歩かせる。
+    animateSinglePassengerWalking(colorKey, slotIdx) {
+        return new Promise(resolve => {
+            const line = document.getElementById('passenger-line');
+            const passengerEls = line ? line.querySelectorAll('.queue-passenger') : [];
+            // 列は右端が「次に乗る人」（バス停側）なので、右端＝最後の要素を対象にする
+            const firstPassenger = passengerEls.length ? passengerEls[passengerEls.length - 1] : null;
+            const slotPos = this.slotPositions[slotIdx];
+
+            if (!firstPassenger || !slotPos) {
+                resolve();
+                return;
+            }
+
+            const startRect = firstPassenger.getBoundingClientRect();
+            const busVec = new THREE.Vector3(slotPos.x, slotPos.y, slotPos.z);
+            busVec.project(this.camera);
+            const containerRect = this.container.getBoundingClientRect();
+            const targetX = (busVec.x * 0.5 + 0.5) * containerRect.width + containerRect.left;
+            const targetY = (-(busVec.y * 0.5) + 0.5) * containerRect.height + containerRect.top;
+
+            const walker = document.createElement('div');
+            walker.className = 'walking-passenger';
+            walker.style.color = COLOR_PALETTE[colorKey].css;
+            walker.innerHTML = `
+                <div class="person-icon">
+                    <div class="person-head"></div>
+                    <div class="person-body"></div>
+                </div>
+            `;
+            document.body.appendChild(walker);
+
+            const startX = startRect.left + startRect.width / 2 - 14;
+            const startY = startRect.top + startRect.height / 2 - 17;
+            const endX = targetX - 14;
+            const endY = targetY - 17;
+            const duration = 520;
+            const started = performance.now();
+
+            const finish = () => {
+                if (walker.parentNode) walker.parentNode.removeChild(walker);
+                resolve();
+            };
+
+            const step = now => {
+                const progress = Math.min((now - started) / duration, 1);
+                const eased = progress < .5 ? 2*progress*progress : 1-Math.pow(-2*progress+2,2)/2;
+                const x = startX + (endX-startX)*eased;
+                const y = startY + (endY-startY)*eased - Math.sin(progress*Math.PI*6)*5;
+                walker.style.left = `${x}px`;
+                walker.style.top = `${y}px`;
+                if (progress < 1) requestAnimationFrame(step);
+                else finish();
+            };
+            requestAnimationFrame(step);
+        });
+    }
+
+    getFreeSlotIndex() {
+        return this.slots.findIndex(s => s === null);
+    }
+
+    formatMoney(amount) {
+        return '￥' + Math.round(amount).toLocaleString('ja-JP');
+    }
+
+    checkGameStatus() {
+        if (this.passengers.length === 0 && this.slots.every(s => s === null)) {
+            sounds.play('clear');
+            setTimeout(() => {
+                this.showStageClearModal();
+            }, 300);
+            return;
+        }
+
+        const isSlotFull = this.slots.every(s => s !== null);
+        if (isSlotFull && this.passengers.length > 0) {
+            const firstColor = this.passengers[0];
+            const hasMatchingBus = this.slots.some(b => b && b.color === firstColor && b.passengerCount < b.capacity);
+
+            if (!hasMatchingBus) {
+                sounds.play('fail');
+                setTimeout(() => {
+                    document.getElementById('modal-gameover').classList.remove('hidden');
+                }, 500);
+            }
+        }
+    }
+
+    // 全バス出発（ステージクリア）時に色別の内訳を表示し、
+    // フッターの「閉じる」ボタンまたは3秒後の自動クローズで次のステージへ進む。
+    showStageClearModal() {
+        const breakdownEl = document.getElementById('clear-breakdown');
+        let totalCount = 0;
+        let totalAmount = 0;
+        let rowsHtml = '';
+
+        Object.keys(this.stageBoardedCounts).forEach(color => {
+            const count = this.stageBoardedCounts[color] || 0;
+            if (count === 0) return;
+            const amount = count * 200;
+            totalCount += count;
+            totalAmount += amount;
+            const pColor = COLOR_PALETTE[color];
+            rowsHtml += `<div class="flex items-center justify-between text-xs py-1.5">
+                <span class="flex items-center gap-2">
+                    <span class="inline-block w-3 h-3 rounded-full" style="background:${pColor.css}"></span>${pColor.name}
+                </span>
+                <span class="text-indigo-200">${count}人 ・ ${this.formatMoney(amount)}</span>
+            </div>`;
+        });
+
+        breakdownEl.innerHTML = rowsHtml;
+        document.getElementById('clear-total-count').innerText = `合計 ${totalCount}人`;
+        document.getElementById('clear-total-amount').innerText = this.formatMoney(totalAmount);
+
+        const modal = document.getElementById('modal-clear');
+        modal.classList.remove('hidden');
+        sounds.play('horn');
+
+        let closed = false;
+        let timerId = null;
+        const btnEl = document.getElementById('btn-clear-close');
+
+        const closeAndAdvance = () => {
+            if (closed) return;
+            closed = true;
+            clearTimeout(timerId);
+            modal.classList.add('hidden');
+            btnEl.removeEventListener('click', closeAndAdvance);
+            this.currentLevel++;
+            this.loadLevel(this.currentLevel);
+        };
+
+        // 前回ステージ分のリスナーが残っていれば外してから今回分を登録する
+        if (this._clearCloseHandler) {
+            btnEl.removeEventListener('click', this._clearCloseHandler);
+        }
+        this._clearCloseHandler = closeAndAdvance;
+        btnEl.addEventListener('click', closeAndAdvance);
+
+        timerId = setTimeout(closeAndAdvance, 3000);
+    }
+
+    shakeBus(bus) {
+        if (!bus.mesh) return;
+        const startX = bus.mesh.position.x;
+        new TWEEN.Tween(bus.mesh.position)
+            .to({ x: startX + 0.15 }, 50)
+            .yoyo(true)
+            .repeat(3)
+            .start();
+    }
+
+    renderPassengersUI(animateAdvance = false) {
+        const container = document.getElementById('passenger-line');
+        document.getElementById('passenger-count').innerText = this.passengers.length;
+        container.innerHTML = '';
+
+        // 先頭（次に乗車する乗客）がバス停に近い右側に来るよう、逆順に並べる
+        const visiblePassengers = this.passengers.slice(0, 16);
+        [...visiblePassengers].reverse().forEach((colorKey) => {
+            const pColor = COLOR_PALETTE[colorKey];
+            const div = document.createElement('div');
+            div.className = `queue-passenger flex-shrink-0 flex items-center justify-center ${animateAdvance ? 'queue-advance' : ''}`;
+            div.style.color = pColor.css;
+            div.innerHTML = `<div class="person-icon"><div class="person-head"></div><div class="person-body"></div></div>`;
+            container.appendChild(div);
+        });
+
+        const stop = document.createElement('div');
+        stop.className = 'bus-stop-marker flex-shrink-0';
+        stop.innerText = '🚏';
+        stop.setAttribute('aria-label', 'バス停・列の先頭');
+        container.appendChild(stop);
+    }
+
+    animate() {
+        requestAnimationFrame(() => this.animate());
+        TWEEN.update();
+        this.renderer.render(this.scene, this.camera);
+    }
+}
+
+window.onload = () => {
+    window.game = new Game3D();
+    initIntroModal();
+};
+
+// 起動時ルール説明モーダル: 表示と同時にクラクションを鳴らし、
+// 3秒後の自動クローズ、または「閉じる」タップで男性音声の「出発進行！」を再生する。
+function initIntroModal() {
+    const modal = document.getElementById('modal-intro');
+    const closeBtn = document.getElementById('btn-intro-close');
+    if (!modal || !closeBtn) return;
+
+    let closed = false;
+    let timerId = null;
+
+    const closeModal = () => {
+        if (closed) return;
+        closed = true;
+        clearTimeout(timerId);
+        modal.classList.add('hidden');
+        sounds.speak('出発進行！');
+    };
+
+    sounds.play('horn');
+    timerId = setTimeout(closeModal, 3000);
+
+    closeBtn.addEventListener('click', () => {
+        sounds.init();
+        closeModal();
+    });
+}
+</script>
+</body>
+</html>
