@@ -353,10 +353,25 @@ const STAGE2_CUSTOMER = new THREE.Vector3(-152, 0, -259);
 let startPoint = STAGE1_START.clone();
 let goalPoint = STAGE1_GOAL.clone();
 let customerPos = STAGE1_CUSTOMER.clone();
-const maxStage = 2;
+const maxStage = 999; // 実質無制限：クリアするたびに新しい区間を生成して延長する
 let currentStage = 1;
 
 let buildingBounds = []; // 衝突判定用の建物バウンディングボックス {minX,maxX,minZ,maxZ}
+// 各区間の走行可能エリア（歩道込みの緩い範囲）。ステージが進むごとに新しい区間が追加される。
+let courseSegments = [
+    { minX: -34, maxX: 28, minZ: 38, maxZ: 216 },
+    { minX: -99, maxX: 14, minZ: 22, maxZ: 38 },
+    { minX: -114, maxX: -46, minZ: -262, maxZ: 22 },
+    { minX: -168, maxX: -46, minZ: -286, maxZ: -262 }
+];
+// 左手交通の「左」を汎用的に求める（向いている方向fを+90度回転）
+function leftOf(forward) { return new THREE.Vector3(forward.z, 0, -forward.x); }
+// 赤信号の判定ゲート（生成済みの交差点ぶん）
+let redLightGates = [
+    { axis: 'z', boundary: 42, dir: -1, crossCenter: -4.5 },
+    { axis: 'x', boundary: -70, dir: -1, crossCenter: 30 },
+    { axis: 'z', boundary: -262, dir: -1, crossCenter: -80 }
+];
 let difficultyLevel = 0; // 配達を達成するたびに上がる難易度（ページ再読み込みでリセット）
 let dynamicObstacles = [];
 let parkedCars = [];
@@ -2392,7 +2407,7 @@ function buildJapaneseCity() {
 
     createCrosswalk(-70, 30, 6, 16, false);
     createCrosswalk(-80, 18, 16, 6, true);
-    createTrafficLightMesh(-90.0, 19, Math.PI / 2, '弥生坂');
+    createTrafficLightMesh(-90.0, 41, Math.PI / 2, '弥生坂');
 
     // 歩道・縁石（道路1・道路3沿い、メインの走行区間）
     createSidewalkStrip(-14.0, 116, 3.0, 195, true);
@@ -2513,6 +2528,10 @@ function buildObstacles() {
     dynamicObstacles = [];
     parkedCars = [];
 
+    if (currentStage >= 3) {
+        if (currentStageSegInfo) buildProceduralObstacles(currentStageSegInfo);
+        return;
+    }
     if (currentStage >= 2) {
         buildStage2Obstacles();
         return;
@@ -2606,7 +2625,171 @@ function buildObstacles() {
     });
 }
 
-// ステージ2専用の障害物配置（道路3の続き＋道路4）。ステージ1より明確に難しくする。
+// ステージ3以降は道を実行時に生成して延長する（毎回まっすぐ+左右交互に曲がり、距離も難易度も伸びる）
+let courseState = null; // { point, forward } 直近の区間の終点と進行方向
+let currentStageSegInfo = null; // 現在のステージ区間情報（リトライ時の障害物再生成に使う）
+
+function generateNextStageSegment(stageNum) {
+    const turnLeft = stageNum % 2 === 0;
+    const prevForward = courseState.forward.clone();
+    const left = leftOf(prevForward);
+    const newForward = (turnLeft ? left.clone() : left.clone().negate()).normalize();
+
+    const turnPoint = courseState.point.clone();
+    const segLength = 70 + stageNum * 14;
+    const roadHalfWidth = 8;
+    const alongIsZ = Math.abs(newForward.z) > 0.5;
+
+    const segCenter = turnPoint.clone().addScaledVector(newForward, segLength / 2 + 6);
+    const newGoal = turnPoint.clone().addScaledVector(newForward, segLength + 6);
+
+    let seg;
+    if (alongIsZ) {
+        const zMin = Math.min(turnPoint.z, newGoal.z) - 4;
+        const zMax = Math.max(turnPoint.z, newGoal.z) + 4;
+        seg = { minX: segCenter.x - roadHalfWidth - 34, maxX: segCenter.x + roadHalfWidth + 34, minZ: zMin, maxZ: zMax };
+    } else {
+        const xMin = Math.min(turnPoint.x, newGoal.x) - 4;
+        const xMax = Math.max(turnPoint.x, newGoal.x) + 4;
+        seg = { minX: xMin, maxX: xMax, minZ: segCenter.z - roadHalfWidth - 34, maxZ: segCenter.z + roadHalfWidth + 34 };
+    }
+    courseSegments.push(seg);
+
+    // 道路
+    const roadMatN = ROAD_MAT.clone();
+    roadMatN.map = ASPHALT_TEXTURE.clone();
+    roadMatN.map.needsUpdate = true;
+    roadMatN.map.wrapS = THREE.RepeatWrapping;
+    roadMatN.map.wrapT = THREE.RepeatWrapping;
+    const roadLen = segLength + 12;
+    let roadMesh;
+    if (alongIsZ) {
+        roadMatN.map.repeat.set(2, Math.max(4, roadLen / 10));
+        roadMesh = new THREE.Mesh(new THREE.PlaneGeometry(16, roadLen), roadMatN);
+    } else {
+        roadMatN.map.repeat.set(Math.max(4, roadLen / 10), 2);
+        roadMesh = new THREE.Mesh(new THREE.PlaneGeometry(roadLen, 16), roadMatN);
+    }
+    roadMesh.rotation.x = -Math.PI / 2;
+    roadMesh.position.set(segCenter.x, 0, segCenter.z);
+    roadMesh.receiveShadow = true;
+    scene.add(roadMesh);
+    addLaneMarkings(segCenter.x, segCenter.z, roadLen, roadHalfWidth, alongIsZ, []);
+
+    // 交差点（信号・横断歩道）: 自車線側（左）・遠い側に正しく向くよう設置
+    createCrosswalk(
+        alongIsZ ? turnPoint.x : turnPoint.x,
+        alongIsZ ? turnPoint.z : turnPoint.z,
+        alongIsZ ? 16 : 6, alongIsZ ? 6 : 16, alongIsZ
+    );
+    const lightPos = turnPoint.clone().addScaledVector(prevForward, 9).addScaledVector(leftOf(prevForward), 13);
+    const faceRotY = Math.atan2(-prevForward.x, -prevForward.z);
+    createTrafficLightMesh(lightPos.x, lightPos.z, faceRotY, `${stageNum}丁目通り`);
+    redLightGates.push({
+        axis: alongIsZ ? 'z' : 'x',
+        boundary: alongIsZ ? turnPoint.z : turnPoint.x,
+        dir: -1,
+        crossCenter: alongIsZ ? turnPoint.x : turnPoint.z
+    });
+
+    // 歩道・街路樹・建物（控えめな数でパフォーマンスに配慮）※新しい区間の進行方向を基準にした左右
+    const newLeft = leftOf(newForward);
+    const sideA = newLeft.clone();
+    const sideB = newLeft.clone().negate();
+    for (const side of [sideA, sideB]) {
+        const sw = segCenter.clone().addScaledVector(side, roadHalfWidth + 1.5);
+        createSidewalkStrip(alongIsZ ? sw.x : segCenter.x, alongIsZ ? segCenter.z : sw.z, 3.0, roadLen - 10, alongIsZ);
+    }
+    const palette = [0x475569, 0x64748b, 0x334155, 0x3f3f46, 0x1e293b];
+    const buildingCount = Math.min(6, 2 + Math.floor(segLength / 26));
+    for (let i = 1; i <= buildingCount; i++) {
+        const t = (i / (buildingCount + 1));
+        const alongPt = turnPoint.clone().lerp(newGoal, t);
+        for (const side of [sideA, sideB]) {
+            const bPt = alongPt.clone().addScaledVector(side, roadHalfWidth + 13);
+            createBuilding(bPt.x, bPt.z, 14, 10 + Math.random() * 10, 12, palette[Math.floor(Math.random() * palette.length)]);
+        }
+    }
+    for (let i = 1; i <= 3; i++) {
+        const t = i / 4;
+        const alongPt = turnPoint.clone().lerp(newGoal, t);
+        const tPt = alongPt.clone().addScaledVector(sideA, roadHalfWidth + 2);
+        createTree(tPt.x, tPt.z);
+    }
+
+    // 配達先の家
+    const houseSpot = newGoal.clone().addScaledVector(sideA, roadHalfWidth + 2);
+    createSuburbanHouse(houseSpot.x, houseSpot.z);
+    if (customer2Mesh && customer2Mesh.parent) customer2Mesh.parent.remove(customer2Mesh);
+    customer2Mesh = createCustomerMesh();
+    const custSpot = newGoal.clone().addScaledVector(sideA, roadHalfWidth - 6);
+    customer2Mesh.position.copy(custSpot);
+    customer2Mesh.rotation.y = Math.atan2(-newForward.x, -newForward.z) + Math.PI;
+    scene.add(customer2Mesh);
+
+    courseState = { point: newGoal.clone(), forward: newForward.clone() };
+    return { goal: newGoal.clone(), customer: custSpot.clone(), segCenter, alongIsZ, newForward, sideA, roadHalfWidth, turnPoint, newGoal, segLength };
+}
+
+// ステージ3以降の障害物を生成中の区間に沿って配置する
+function buildProceduralObstacles(info) {
+    const speedMul = 1 + difficultyLevel * 0.09;
+    const oncomingSide = info.sideA.clone().negate(); // 対向車は自車線の反対（右）側
+    const dir3 = info.newForward.clone();
+
+    const typeDefs = [
+        { type: 'sedan', color: 0xd97706 }, { type: 'taxi', color: 0x0f1115 },
+        { type: 'van', color: 0x0d9488 }, { type: 'keitruck', color: 0xf1f5f9 }
+    ];
+    const oncomingCount = Math.min(4, 2 + Math.floor(difficultyLevel / 2));
+    for (let i = 0; i < oncomingCount; i++) {
+        const def = typeDefs[i % typeDefs.length];
+        const t = 0.15 + (i / oncomingCount) * 0.7;
+        const alongPt = info.turnPoint.clone().lerp(info.newGoal, t);
+        const carPos = alongPt.clone().addScaledVector(oncomingSide, 5.5);
+        const carGroup = createVehicleMesh(def.type, def.color, {});
+        carGroup.rotation.y = Math.atan2(-dir3.x, -dir3.z);
+        carGroup.position.copy(carPos);
+        scene.add(carGroup);
+        dynamicObstacles.push({
+            type: 'car', mesh: carGroup,
+            speed: (0.24 + Math.random() * 0.08) * speedMul,
+            direction: dir3.clone().negate(),
+            radius: 1.8, warned: false,
+            resetAt: info.turnPoint.clone().addScaledVector(oncomingSide, 5.5),
+            loopAt: info.newGoal.clone().addScaledVector(oncomingSide, 5.5),
+            axis: info.alongIsZ ? 'z' : 'x'
+        });
+    }
+
+    for (let i = 0; i < 2; i++) {
+        const ped = createPedestrianMesh({});
+        const t = 0.3 + i * 0.35;
+        const basePt = info.turnPoint.clone().lerp(info.newGoal, t).addScaledVector(info.sideA, info.roadHalfWidth + 1.5);
+        ped.position.copy(basePt);
+        scene.add(ped);
+        dynamicObstacles.push({
+            type: 'pedestrian', mesh: ped, speed: 0.03,
+            direction: dir3.clone().multiplyScalar(i % 2 === 0 ? 1 : -1),
+            radius: 0.9,
+            patrolAxis: info.alongIsZ ? 'z' : 'x',
+            patrolMin: (info.alongIsZ ? basePt.z : basePt.x) - 20,
+            patrolMax: (info.alongIsZ ? basePt.z : basePt.x) + 20
+        });
+    }
+
+    const kidPt = info.turnPoint.clone().lerp(info.newGoal, 0.55).addScaledVector(info.sideA, info.roadHalfWidth + 1);
+    const kid1 = createPedestrianMesh({ isKid: true, shirtColor: 0x16a34a });
+    kid1.position.copy(kidPt);
+    scene.add(kid1);
+    dynamicObstacles.push({
+        type: 'kid', mesh: kid1, triggered: false,
+        triggerDist: Math.max(30, 48 - difficultyLevel * 3),
+        speed: 0.13,
+        direction: oncomingSide.clone(),
+        radius: 0.8
+    });
+}
 function buildStage2Obstacles() {
     const speedMul = 1 + difficultyLevel * 0.09;
 
@@ -2645,7 +2828,7 @@ function buildStage2Obstacles() {
         });
     }
 
-    // 対向車（道路4：対向車線 z=-264、東向きに走行）
+    // 対向車（道路4：対向車線 z=-276（北側＝東向き車から見て左側）、東向きに走行）
     const oncomingDefsB = [
         { type: 'sedan', color: 0x2563eb },
         { type: 'van', color: 0x0d9488 }
@@ -2655,7 +2838,7 @@ function buildStage2Obstacles() {
         const carGroup = createVehicleMesh(def.type, def.color, {});
         carGroup.rotation.y = Math.PI / 2;
         const startX = -95 - i * 35;
-        carGroup.position.set(startX, 0, -264);
+        carGroup.position.set(startX, 0, -276);
         scene.add(carGroup);
         dynamicObstacles.push({
             type: 'car', mesh: carGroup,
@@ -2833,6 +3016,47 @@ function drawRouteMap() {
     ctx.clearRect(0, 0, w, h);
     ctx.fillStyle = '#0f172a';
     ctx.fillRect(0, 0, w, h);
+
+    if (currentStage >= 3) {
+        // ステージ3以降は現区間だけを簡易表示（全体の縮尺が毎回変わるため）
+        const from = startPoint, to = goalPoint;
+        const pad = 30;
+        const minX = Math.min(from.x, to.x) - 10, maxX = Math.max(from.x, to.x) + 10;
+        const minZ = Math.min(from.z, to.z) - 10, maxZ = Math.max(from.z, to.z) + 10;
+        const sx = (w - pad * 2) / Math.max(1, maxX - minX);
+        const sz = (h - pad * 2) / Math.max(1, maxZ - minZ);
+        const s = Math.min(sx, sz);
+        const mx = (x) => pad + (x - minX) * s;
+        const mz = (z) => pad + (z - minZ) * s;
+
+        ctx.strokeStyle = '#334155';
+        ctx.lineWidth = 12;
+        ctx.beginPath();
+        ctx.moveTo(mx(from.x), mz(from.z));
+        ctx.lineTo(mx(to.x), mz(to.z));
+        ctx.stroke();
+
+        ctx.strokeStyle = '#ef4444';
+        ctx.lineWidth = 4;
+        ctx.beginPath();
+        ctx.moveTo(mx(from.x), mz(from.z));
+        ctx.lineTo(mx(to.x), mz(to.z));
+        ctx.stroke();
+
+        ctx.fillStyle = '#38bdf8';
+        ctx.beginPath();
+        ctx.arc(mx(from.x), mz(from.z), 7, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = '#f59e0b';
+        ctx.beginPath();
+        ctx.arc(mx(to.x), mz(to.z), 8, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.fillStyle = '#f8fafc';
+        ctx.font = 'bold 12px sans-serif';
+        ctx.fillText(`ステージ${currentStage} の配達区間`, 14, 20);
+        return;
+    }
 
     const mapZ = (z) => 0.5135 * z + 148;
 
@@ -3291,20 +3515,10 @@ function updatePhysics() {
 
     // コースアウト判定: 歩道を走るのはOK。建物・道路の3Dモデルの範囲を
     // 大きく超えて「街の外」まで行った場合のみ違反とする（歩道分の余裕を持たせて緩和）。
-    // ステージ2で追加された3つ目の曲がり角（road4, 東西方向）にも対応。
-    let isOffRoad = false;
-    if (nextPos.z > 38) {
-        if (nextPos.x < -34 || nextPos.x > 28) isOffRoad = true;
-    } else if (nextPos.z >= 22) {
-        if (nextPos.x > 14 || nextPos.x < -99) isOffRoad = true;
-    } else if (nextPos.z >= -262) {
-        if (nextPos.x < -114 || nextPos.x > -46) isOffRoad = true;
-    } else if (nextPos.z >= -286) {
-        if (nextPos.x < -168 || nextPos.x > -46) isOffRoad = true;
-    } else {
-        isOffRoad = true;
-    }
-    if (nextPos.z > 216) isOffRoad = true;
+    // 生成済みの区間（courseSegments）のどれかに入っていればOK。
+    let isOffRoad = !courseSegments.some(s =>
+        nextPos.x >= s.minX && nextPos.x <= s.maxX && nextPos.z >= s.minZ && nextPos.z <= s.maxZ
+    );
 
     if (isOffRoad) {
         triggerGameOver("街の3Dモデルの範囲外まで行ってしまいました！", false);
@@ -3319,19 +3533,18 @@ function updatePhysics() {
         }
     }
 
-    // 赤信号無視チェック（3か所すべての交差点で判定）
+    // 赤信号無視チェック（生成済みの交差点すべてで判定）
     if (state.signalState === 2) {
-        if (scooterGroup.position.z > 42 && nextPos.z <= 42 && Math.abs(nextPos.x - (-4.5)) < 8.0) {
-            triggerGameOver("赤信号を無視して交差点に進入しました！", false);
-            return;
-        }
-        if (scooterGroup.position.x > -70 && nextPos.x <= -70 && Math.abs(nextPos.z - 30) < 8.0) {
-            triggerGameOver("赤信号を無視して交差点に進入しました！", false);
-            return;
-        }
-        if (scooterGroup.position.z > -262 && nextPos.z <= -262 && Math.abs(nextPos.x - (-80)) < 8.0) {
-            triggerGameOver("赤信号を無視して交差点に進入しました！", false);
-            return;
+        for (const gate of redLightGates) {
+            const prevAlong = gate.axis === 'z' ? scooterGroup.position.z : scooterGroup.position.x;
+            const nextAlong = gate.axis === 'z' ? nextPos.z : nextPos.x;
+            const cross = gate.axis === 'z' ? nextPos.x : nextPos.z;
+            const crossed = gate.dir > 0 ? (prevAlong < gate.boundary && nextAlong >= gate.boundary)
+                                          : (prevAlong > gate.boundary && nextAlong <= gate.boundary);
+            if (crossed && Math.abs(cross - gate.crossCenter) < 8.0) {
+                triggerGameOver("赤信号を無視して交差点に進入しました！", false);
+                return;
+            }
         }
     }
 
@@ -3355,7 +3568,15 @@ function updateDynamicObstacles(playerPos) {
     for (let obs of dynamicObstacles) {
         if (obs.type === 'car') {
             obs.mesh.position.addScaledVector(obs.direction, obs.speed);
-            if (obs.loopX !== undefined) {
+            if (obs.resetAt && obs.loopAt) {
+                const a = obs.axis;
+                const cur = obs.mesh.position[a];
+                const loopV = obs.loopAt[a];
+                const dirSign = obs.direction[a] >= 0 ? 1 : -1;
+                if ((dirSign > 0 && cur > loopV) || (dirSign < 0 && cur < loopV)) {
+                    obs.mesh.position.copy(obs.resetAt);
+                }
+            } else if (obs.loopX !== undefined) {
                 if (obs.direction.x > 0 && obs.mesh.position.x > obs.loopX) obs.mesh.position.x = obs.resetX;
                 else if (obs.direction.x < 0 && obs.mesh.position.x < obs.loopX) obs.mesh.position.x = obs.resetX;
             } else {
@@ -3393,7 +3614,10 @@ function updateDynamicObstacles(playerPos) {
         }
         else if (obs.type === 'pedestrian') {
             obs.mesh.position.addScaledVector(obs.direction, obs.speed);
-            if (obs.patrolMin !== undefined) {
+            if (obs.patrolAxis) {
+                const v = obs.mesh.position[obs.patrolAxis];
+                if (v > obs.patrolMax || v < obs.patrolMin) obs.direction.negate();
+            } else if (obs.patrolMin !== undefined) {
                 if (obs.mesh.position.z > obs.patrolMax || obs.mesh.position.z < obs.patrolMin) obs.direction.negate();
             } else if (Math.abs(obs.mesh.position.z) > 200) {
                 obs.direction.negate();
@@ -3608,10 +3832,21 @@ function finishDelivery() {
 // 次のステージへ進む：ゴール地点を新しい配達先に切り替え、街の続きへ案内する
 function advanceToNextStage() {
     currentStage++;
+    const prevGoal = goalPoint.clone();
+    startPoint = prevGoal;
 
-    startPoint = goalPoint.clone();
-    goalPoint = STAGE2_GOAL.clone();
-    customerPos = STAGE2_CUSTOMER.clone();
+    if (currentStage === 2) {
+        goalPoint = STAGE2_GOAL.clone();
+        customerPos = STAGE2_CUSTOMER.clone();
+    } else {
+        if (!courseState) {
+            courseState = { point: STAGE2_GOAL.clone(), forward: new THREE.Vector3(-1, 0, 0) };
+        }
+        const info = generateNextStageSegment(currentStage);
+        currentStageSegInfo = info;
+        goalPoint = info.goal.clone();
+        customerPos = info.customer.clone();
+    }
 
     if (scooterGroup) {
         scooterGroup.position.copy(startPoint);
