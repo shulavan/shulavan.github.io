@@ -1,0 +1,1364 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>🚣‍♂️左近川カヌー</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            user-select: none;
+            -webkit-user-select: none;
+            touch-action: manipulation;
+            font-family: 'Helvetica Neue', Arial, sans-serif;
+            background-color: #111;
+        }
+        #canvas-container {
+            width: 100vw;
+            height: 100vh;
+            position: absolute;
+            top: 0;
+            left: 0;
+            z-index: 1;
+        }
+        .ui-layer {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 10;
+            pointer-events: none;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+        }
+        .interactive {
+            pointer-events: auto;
+        }
+        .paddle-btn {
+            background: rgba(255, 255, 255, 0.25);
+            backdrop-filter: blur(8px);
+            border: 2px solid rgba(255, 255, 255, 0.4);
+            border-radius: 50%;
+            width: 80px;
+            height: 80px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 40px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+            transition: transform 0.1s, background-color 0.1s;
+        }
+        .paddle-btn:active, .paddle-btn.active {
+            transform: scale(0.92);
+            background: rgba(255, 255, 255, 0.5);
+        }
+        .paddle-right {
+            transform: rotate(135deg);
+        }
+        .paddle-right:active, .paddle-right.active {
+            transform: rotate(135deg) scale(0.92);
+        }
+        .paddle-left {
+            transform: rotate(-135deg) scaleX(-1);
+        }
+        .paddle-left:active, .paddle-left.active {
+            transform: rotate(-135deg) scaleX(-1) scale(0.92);
+        }
+        #countdown-overlay {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 5rem;
+            font-weight: 900;
+            color: #fff;
+            text-shadow: 0 0 20px rgba(0,0,0,0.8), 0 0 10px #ff0055;
+            z-index: 20;
+            pointer-events: none;
+            text-align: center;
+        }
+        .modal-bg {
+            background: rgba(0, 0, 0, 0.75);
+            backdrop-filter: blur(6px);
+        }
+    </style>
+</head>
+<body>
+
+    <!-- 3D Canvas -->
+    <div id="canvas-container"></div>
+
+    <!-- UI Overlay -->
+    <div class="ui-layer">
+        <header class="w-full bg-slate-900/80 text-white p-3 flex justify-between items-center shadow-lg backdrop-blur-md border-b border-slate-700/50">
+            <h1 class="text-xl font-bold tracking-wider flex items-center gap-1">
+                <span>🚣‍♂️</span> 左近川カヌー
+            </h1>
+            <div class="bg-slate-800/90 px-3 py-1.5 rounded-full border border-yellow-500/40 text-yellow-400 font-extrabold text-base shadow-inner">
+                所持金: <span id="money-display">￥100,000</span>
+            </div>
+        </header>
+
+        <div id="countdown-overlay" class="hidden"></div>
+
+        <div id="game-hud" class="hidden px-4 py-2 flex justify-between items-start">
+            <div class="bg-black/50 text-white px-3 py-1 rounded-lg backdrop-blur-sm text-sm border border-white/20">
+                順位: <span id="current-rank" class="text-xl font-bold text-yellow-400">1</span> / 4位
+            </div>
+            <div class="bg-black/50 text-white px-3 py-1 rounded-lg backdrop-blur-sm text-sm border border-white/20">
+                タイム: <span id="timer-display" class="text-xl font-bold text-emerald-400">0.00</span>秒
+            </div>
+            <div class="bg-black/50 text-white px-3 py-1 rounded-lg backdrop-blur-sm text-sm border border-white/20">
+                残り距離: <span id="distance-display" class="text-xl font-bold text-cyan-400">100</span>m
+            </div>
+        </div>
+
+        <footer class="w-full p-6 flex justify-between items-center interactive">
+            <button id="btn-left" class="paddle-btn paddle-left text-white select-none" aria-label="右へ曲がる">
+                🥄
+            </button>
+            <div class="text-xs text-white/70 bg-black/40 px-3 py-1 rounded-full backdrop-blur-sm text-center">
+                左右同時押しで直進
+            </div>
+            <button id="btn-right" class="paddle-btn paddle-right text-white select-none" aria-label="左へ曲がる">
+                🥄
+            </button>
+        </footer>
+    </div>
+
+    <!-- スタート用モーダル -->
+    <div id="start-modal" class="fixed inset-0 modal-bg z-50 flex items-center justify-center p-4 interactive">
+        <div class="bg-slate-800 text-white rounded-2xl max-w-md w-full overflow-hidden shadow-2xl border border-slate-700 flex flex-col">
+            <div class="bg-slate-900 p-4 border-b border-slate-700 text-center relative">
+                <h2 class="text-2xl font-black text-transparent bg-clip-text bg-gradient-to-r from-yellow-400 to-amber-500">
+                    🚣‍♂️ 左近川カヌー
+                </h2>
+            </div>
+            <div class="p-6 space-y-4 text-slate-200 text-sm leading-relaxed">
+                <div class="bg-slate-900/60 p-3 rounded-xl border border-yellow-500/30 flex justify-between items-center">
+                    <span class="text-slate-400">現在の所持金</span>
+                    <span class="text-lg font-bold text-yellow-400" id="modal-money">￥100,000</span>
+                </div>
+                <div class="bg-red-500/10 border border-red-500/30 p-3 rounded-xl text-center text-red-300 font-bold">
+                    参加費 ￥3,000 になります
+                </div>
+                
+                <div id="player-boat-info" class="bg-slate-900/80 p-3 rounded-xl border border-cyan-500/40 text-center font-bold">
+                </div>
+
+                <div class="space-y-2 pt-1">
+                    <p class="font-bold text-slate-100 flex items-center gap-1">
+                        <span>🎮</span> 【操作ルール】
+                    </p>
+                    <ul class="list-disc list-inside space-y-1 text-xs text-slate-300 bg-slate-900/40 p-3 rounded-lg border border-slate-700/50">
+                        <li><span class="text-yellow-300 font-semibold">右ボタン（🥄）</span>を押すと <b>左</b> に曲がります</li>
+                        <li><span class="text-yellow-300 font-semibold">左ボタン（🥄）</span>を押すと <b>右</b> に曲がります</li>
+                        <li><span class="text-yellow-300 font-semibold">両方同時に押す</span>と <b>真っ直ぐ</b> 進みます</li>
+                        <li>障害物にぶつかると<b>横転</b>（その後3秒間障害物のみすり抜け）！</li>
+                    </ul>
+                </div>
+            </div>
+            <div class="p-4 bg-slate-900/80 border-t border-slate-700/50 flex flex-col items-center gap-2">
+                <button id="btn-start-close" class="w-full bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white font-bold py-3 rounded-xl shadow-lg transition active:scale-95">
+                    閉じる (スタート)
+                </button>
+                <span class="text-xs text-slate-400">(3秒後に自動で閉じます)</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- リザルト用モーダル -->
+    <div id="result-modal" class="fixed inset-0 modal-bg z-50 flex items-center justify-center p-4 interactive hidden">
+        <div class="bg-slate-800 text-white rounded-2xl max-w-md w-full overflow-hidden shadow-2xl border border-slate-700 flex flex-col">
+            <div class="bg-slate-900 p-4 border-b border-slate-700 text-center">
+                <h2 class="text-2xl font-black text-yellow-400">🏁 レース結果</h2>
+            </div>
+            <div class="p-6 space-y-4">
+                <div class="text-center py-1">
+                    <span class="text-xs text-slate-400">あなたの順位</span>
+                    <div id="result-rank-display" class="text-4xl font-black text-transparent bg-clip-text bg-gradient-to-r from-yellow-300 via-amber-400 to-orange-500 my-1">
+                        1位
+                    </div>
+                    <div id="result-time-display" class="text-lg font-bold text-cyan-300">
+                        タイム: 0.00秒
+                    </div>
+                    <div id="result-prize-display" class="text-lg font-bold text-emerald-400 mt-1">
+                        獲得賞金: ￥10,000
+                    </div>
+                </div>
+
+                <div class="bg-slate-900/80 rounded-xl border border-slate-700 overflow-hidden text-xs">
+                    <table class="w-full text-left">
+                        <thead class="bg-slate-800 text-slate-400 border-b border-slate-700">
+                            <tr>
+                                <th class="p-2">順位</th>
+                                <th class="p-2">レーサー</th>
+                                <th class="p-2 text-center">タイム</th>
+                                <th class="p-2 text-right">賞金</th>
+                            </tr>
+                        </thead>
+                        <tbody id="result-table-body" class="divide-y divide-slate-800">
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            <div class="p-4 bg-slate-900/80 border-t border-slate-700/50 flex flex-col items-center gap-2">
+                <button id="btn-result-close" class="w-full bg-slate-700 hover:bg-slate-600 text-white font-bold py-3 rounded-xl shadow-lg transition active:scale-95">
+                    閉じる
+                </button>
+                <span class="text-xs text-slate-400">(5秒後に自動で閉じます)</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Audio System -->
+    <script>
+        class SoundSystem {
+            constructor() {
+                this.ctx = null;
+            }
+
+            init() {
+                if (!this.ctx) {
+                    this.ctx = new (window.AudioContext || window.webkitAudioContext)();
+                }
+            }
+
+            playBeep(isHigh = false) {
+                this.init();
+                if (!this.ctx) return;
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(isHigh ? 880 : 440, this.ctx.currentTime);
+                gain.gain.setValueAtTime(0.3, this.ctx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + (isHigh ? 0.6 : 0.25));
+                osc.connect(gain);
+                gain.connect(this.ctx.destination);
+                osc.start();
+                osc.stop(this.ctx.currentTime + (isHigh ? 0.6 : 0.25));
+            }
+
+            playCrash() {
+                this.init();
+                if (!this.ctx) return;
+                const bufferSize = this.ctx.sampleRate * 0.5;
+                const buffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
+                const data = buffer.getChannelData(0);
+                for (let i = 0; i < bufferSize; i++) {
+                    data[i] = Math.random() * 2 - 1;
+                }
+                const noise = this.ctx.createBufferSource();
+                noise.buffer = buffer;
+                const filter = this.ctx.createBiquadFilter();
+                filter.type = 'lowpass';
+                filter.frequency.setValueAtTime(800, this.ctx.currentTime);
+                filter.frequency.exponentialRampToValueAtTime(100, this.ctx.currentTime + 0.5);
+                const gain = this.ctx.createGain();
+                gain.gain.setValueAtTime(0.5, this.ctx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + 0.5);
+                noise.connect(filter);
+                filter.connect(gain);
+                gain.connect(this.ctx.destination);
+                noise.start();
+            }
+
+            playGoal() {
+                this.init();
+                if (!this.ctx) return;
+                const notes = [523.25, 659.25, 783.99, 1046.50];
+                notes.forEach((freq, idx) => {
+                    const osc = this.ctx.createOscillator();
+                    const gain = this.ctx.createGain();
+                    osc.type = 'triangle';
+                    osc.frequency.value = freq;
+                    gain.gain.setValueAtTime(0.2, this.ctx.currentTime + idx * 0.1);
+                    gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + idx * 0.1 + 0.4);
+                    osc.connect(gain);
+                    gain.connect(this.ctx.destination);
+                    osc.start(this.ctx.currentTime + idx * 0.1);
+                    osc.stop(this.ctx.currentTime + idx * 0.1 + 0.4);
+                });
+            }
+        }
+        const soundSys = new SoundSystem();
+    </script>
+
+    <!-- Main Game Logic -->
+    <script>
+        // --- ゲーム状態 ---
+        let money = 100000;
+        const ENTRY_FEE = 3000;
+        let gameState = 'INIT';
+        let autoStartTimer = null;
+        let autoResultTimer = null;
+        let finishOrder = [];
+        let raceTime = 0;
+
+        const moneyDisplay = document.getElementById('money-display');
+        const modalMoney = document.getElementById('modal-money');
+        const startModal = document.getElementById('start-modal');
+        const resultModal = document.getElementById('result-modal');
+        const countdownOverlay = document.getElementById('countdown-overlay');
+        const btnStartClose = document.getElementById('btn-start-close');
+        const btnResultClose = document.getElementById('btn-result-close');
+        const btnLeft = document.getElementById('btn-left');
+        const btnRight = document.getElementById('btn-right');
+        const gameHud = document.getElementById('game-hud');
+        const currentRankDisplay = document.getElementById('current-rank');
+        const timerDisplay = document.getElementById('timer-display');
+        const distanceDisplay = document.getElementById('distance-display');
+        const playerBoatInfo = document.getElementById('player-boat-info');
+
+        let inputLeft = false;
+        let inputRight = false;
+
+        function updateMoneyUI() {
+            const formatted = '￥' + money.toLocaleString();
+            moneyDisplay.textContent = formatted;
+            modalMoney.textContent = formatted;
+        }
+
+        // --- 3D Scene ---
+        const container = document.getElementById('canvas-container');
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0xa0c4ff);
+        scene.fog = new THREE.FogExp2(0xa0c4ff, 0.008);
+
+        const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
+        const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: "high-performance" });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+        renderer.shadowMap.enabled = true;
+        renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+        container.appendChild(renderer.domElement);
+
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.7);
+        scene.add(ambientLight);
+
+        const dirLight = new THREE.DirectionalLight(0xfffaed, 0.85);
+        dirLight.position.set(60, 90, 60);
+        dirLight.castShadow = true;
+        dirLight.shadow.mapSize.width = 2048;
+        dirLight.shadow.mapSize.height = 2048;
+        dirLight.shadow.camera.near = 0.5;
+        dirLight.shadow.camera.far = 300;
+        const d = 50;
+        dirLight.shadow.camera.left = -d;
+        dirLight.shadow.camera.right = d;
+        dirLight.shadow.camera.top = d;
+        dirLight.shadow.camera.bottom = -d;
+        scene.add(dirLight);
+
+        // コース生成
+        const COURSE_LENGTH = 350;
+        const RIVER_WIDTH = 16;
+        const LAND_HEIGHT = 1.8; // 陸地の高さ（高低差：水面から1.8m高架）
+
+        const curvePoints = [
+            new THREE.Vector3(0, 0, 0),
+            new THREE.Vector3(5, 0, -60),
+            new THREE.Vector3(-15, 0, -120),
+            new THREE.Vector3(20, 0, -180),
+            new THREE.Vector3(-10, 0, -240),
+            new THREE.Vector3(0, 0, -300),
+            new THREE.Vector3(0, 0, -COURSE_LENGTH)
+        ];
+        const riverCurve = new THREE.CatmullRomCurve3(curvePoints);
+
+        const obstacles = [];
+
+        // 3Dモデリングヘルパー: ローポリスタイリッシュ人間の生成
+        function createHumanCharacter(shirtColorHex, pantsColorHex, isRower = false) {
+            const humanGroup = new THREE.Group();
+
+            const headMat = new THREE.MeshStandardMaterial({ color: 0xffdbac, roughness: 0.5 });
+            const hairMat = new THREE.MeshStandardMaterial({ color: 0x4a3728, roughness: 0.8 });
+            const shirtMat = new THREE.MeshStandardMaterial({ color: shirtColorHex, roughness: 0.4 });
+            const pantsMat = new THREE.MeshStandardMaterial({ color: pantsColorHex, roughness: 0.6 });
+
+            // 1. 頭部＆髪
+            const headGeo = new THREE.SphereGeometry(0.22, 12, 12);
+            const head = new THREE.Mesh(headGeo, headMat);
+            head.position.y = 1.35;
+            head.castShadow = true;
+            humanGroup.add(head);
+
+            const hairGeo = new THREE.SphereGeometry(0.23, 12, 12, 0, Math.PI * 2, 0, Math.PI * 0.5);
+            const hair = new THREE.Mesh(hairGeo, hairMat);
+            hair.position.y = 1.37;
+            humanGroup.add(hair);
+
+            // 2. 胴体
+            const torsoGeo = new THREE.CylinderGeometry(0.2, 0.18, 0.65, 12);
+            const torso = new THREE.Mesh(torsoGeo, shirtMat);
+            torso.position.y = 0.85;
+            torso.castShadow = true;
+            humanGroup.add(torso);
+
+            if (!isRower) {
+                // 脚部
+                const legGeo = new THREE.CylinderGeometry(0.08, 0.07, 0.55, 8);
+                const leftLeg = new THREE.Mesh(legGeo, pantsMat);
+                leftLeg.position.set(-0.1, 0.28, 0);
+                leftLeg.castShadow = true;
+
+                const rightLeg = new THREE.Mesh(legGeo, pantsMat);
+                rightLeg.position.set(0.1, 0.28, 0);
+                rightLeg.castShadow = true;
+
+                humanGroup.add(leftLeg, rightLeg);
+
+                // 腕部
+                const armGeo = new THREE.CylinderGeometry(0.06, 0.05, 0.5, 8);
+                const leftArm = new THREE.Mesh(armGeo, shirtMat);
+                leftArm.position.set(-0.25, 0.85, 0);
+                
+                const rightArm = new THREE.Mesh(armGeo, shirtMat);
+                rightArm.position.set(0.25, 0.85, 0);
+
+                humanGroup.add(leftArm, rightArm);
+            } else {
+                torso.position.y = 0.55;
+                head.position.y = 1.05;
+                hair.position.y = 1.07;
+            }
+
+            return humanGroup;
+        }
+
+        // 3Dモデリング: ローポリビル
+        function createCityBuilding(width, height, depth, wallColorHex) {
+            const group = new THREE.Group();
+
+            const wallMat = new THREE.MeshStandardMaterial({ color: wallColorHex, roughness: 0.6 });
+            const windowMat = new THREE.MeshStandardMaterial({ color: 0xfff3b0, roughness: 0.2, emissive: 0x554411 });
+
+            const bodyGeo = new THREE.BoxGeometry(width, height, depth);
+            const body = new THREE.Mesh(bodyGeo, wallMat);
+            body.position.y = height / 2;
+            body.castShadow = true;
+            body.receiveShadow = true;
+            group.add(body);
+
+            const windowRows = Math.floor(height / 2.5);
+            const windowCols = Math.floor(width / 2.2);
+
+            for (let r = 1; r < windowRows; r++) {
+                for (let c = 0; c < windowCols; c++) {
+                    const winGeo = new THREE.PlaneGeometry(0.8, 1.2);
+                    const win = new THREE.Mesh(winGeo, windowMat);
+                    
+                    const x = -width / 2 + (c + 0.6) * (width / windowCols);
+                    const y = r * 2.3;
+                    const z = depth / 2 + 0.02;
+
+                    win.position.set(x, y, z);
+                    group.add(win);
+                }
+            }
+
+            return group;
+        }
+
+        function createPolyTree() {
+            const treeGroup = new THREE.Group();
+
+            const trunkGeo = new THREE.CylinderGeometry(0.2, 0.3, 1.8, 8);
+            const trunkMat = new THREE.MeshStandardMaterial({ color: 0x8b5a2b, roughness: 0.9 });
+            const trunk = new THREE.Mesh(trunkGeo, trunkMat);
+            trunk.position.y = 0.9;
+            trunk.castShadow = true;
+            treeGroup.add(trunk);
+
+            const leavesGeo = new THREE.IcosahedronGeometry(1.2, 1);
+            const leavesMat = new THREE.MeshStandardMaterial({ color: 0x70e000, roughness: 0.7, flatShading: true });
+            const leaves = new THREE.Mesh(leavesGeo, leavesMat);
+            leaves.position.y = 2.4;
+            leaves.scale.set(0.9, 1.4, 0.9);
+            leaves.castShadow = true;
+            treeGroup.add(leaves);
+
+            return treeGroup;
+        }
+
+        function createUtilityPole() {
+            const group = new THREE.Group();
+            const poleMat = new THREE.MeshStandardMaterial({ color: 0x555555, roughness: 0.5 });
+
+            const poleGeo = new THREE.CylinderGeometry(0.12, 0.15, 8, 8);
+            const pole = new THREE.Mesh(poleGeo, poleMat);
+            pole.position.y = 4;
+            pole.castShadow = true;
+            group.add(pole);
+
+            const barGeo = new THREE.BoxGeometry(1.6, 0.1, 0.1);
+            const bar = new THREE.Mesh(barGeo, poleMat);
+            bar.position.set(0, 6.8, 0);
+            group.add(bar);
+
+            return group;
+        }
+
+        function buildEnvironment() {
+            // 水面
+            const waterGeo = new THREE.PlaneGeometry(350, COURSE_LENGTH + 100, 32, 128);
+            const waterMat = new THREE.MeshStandardMaterial({
+                color: 0x1b4965,
+                roughness: 0.1,
+                metalness: 0.8,
+                transparent: true,
+                opacity: 0.88
+            });
+            const water = new THREE.Mesh(waterGeo, waterMat);
+            water.rotation.x = -Math.PI / 2;
+            water.position.set(0, -0.2, -COURSE_LENGTH / 2);
+            scene.add(water);
+
+            const samples = 100;
+            const points = riverCurve.getSpacedPoints(samples);
+
+            const sidewalkMat = new THREE.MeshStandardMaterial({ color: 0xe0e0e0, roughness: 0.8 });
+            const embankmentMat = new THREE.MeshStandardMaterial({ color: 0x616161, roughness: 0.9 }); // 川のコンクリート岸壁
+            const fenceMat = new THREE.MeshStandardMaterial({ color: 0x222222, metalness: 0.6 });
+
+            const spectatorShirtColors = [0x3a86ff, 0xff006e, 0xfb5607, 0xffbe0b, 0x8338ec];
+            const buildingColors = [0x2b2d42, 0x415a77, 0x778da9, 0x3d5a80, 0x98c1d9];
+
+            for (let i = 0; i < samples; i++) {
+                const pt = points[i];
+                const tangent = riverCurve.getTangentAt(i / samples).normalize();
+                const normal = new THREE.Vector3(-tangent.z, 0, tangent.x).normalize();
+
+                [-1, 1].forEach(side => {
+                    const sideFactor = side;
+
+                    // 1. 川の垂直コンクリート岸壁（水面 -0.2 から陸地 1.8m まで高く立ち上がる）
+                    const wallGeo = new THREE.BoxGeometry(0.8, LAND_HEIGHT + 0.4, COURSE_LENGTH / samples + 0.5);
+                    const wall = new THREE.Mesh(wallGeo, embankmentMat);
+                    const wallPos = pt.clone().add(normal.clone().multiplyScalar(sideFactor * (RIVER_WIDTH / 2 + 0.4)));
+                    wall.position.copy(wallPos);
+                    wall.position.y = (LAND_HEIGHT - 0.2) / 2;
+                    wall.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, -1), tangent);
+                    scene.add(wall);
+
+                    // 2. 川沿いの高架歩道・陸地 (Y = 1.8m)
+                    const walkPos = pt.clone().add(normal.clone().multiplyScalar(sideFactor * (RIVER_WIDTH / 2 + 3.0)));
+                    const walkGeo = new THREE.BoxGeometry(6, 0.4, COURSE_LENGTH / samples + 0.5);
+                    const walk = new THREE.Mesh(walkGeo, sidewalkMat);
+                    walk.position.copy(walkPos);
+                    walk.position.y = LAND_HEIGHT; // 水面から十分な高低差
+                    walk.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, -1), tangent);
+                    walk.receiveShadow = true;
+                    scene.add(walk);
+
+                    // 3. 安全柵・ガードレール (歩道の端、岸壁の上)
+                    const fenceGeo = new THREE.BoxGeometry(0.15, 0.9, COURSE_LENGTH / samples + 0.2);
+                    const fence = new THREE.Mesh(fenceGeo, fenceMat);
+                    const fencePos = pt.clone().add(normal.clone().multiplyScalar(sideFactor * (RIVER_WIDTH / 2 + 0.1)));
+                    fence.position.copy(fencePos);
+                    fence.position.y = LAND_HEIGHT + 0.65;
+                    fence.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, -1), tangent);
+                    scene.add(fence);
+
+                    // 4. 高い陸地から川を見下ろす観客
+                    if (i % 3 === 0 && i > 2 && i < samples - 5) {
+                        const shirtCol = spectatorShirtColors[i % spectatorShirtColors.length];
+                        const spectator = createHumanCharacter(shirtCol, 0x2b2d42, false);
+                        const specPos = pt.clone().add(normal.clone().multiplyScalar(sideFactor * (RIVER_WIDTH / 2 + 1.2)));
+                        spectator.position.copy(specPos);
+                        spectator.position.y = LAND_HEIGHT + 0.2; // 陸地の上に立つ
+                        spectator.lookAt(pt.x, 0.2, pt.z); // 下のカヌーをのぞき込んで見下ろす
+                        scene.add(spectator);
+                    }
+
+                    // 5. 街路樹＆電柱
+                    if (i % 8 === 0 && i > 1 && i < samples - 3) {
+                        const tree = createPolyTree();
+                        const treePos = pt.clone().add(normal.clone().multiplyScalar(sideFactor * (RIVER_WIDTH / 2 + 4.8)));
+                        tree.position.copy(treePos);
+                        tree.position.y = LAND_HEIGHT + 0.2;
+                        scene.add(tree);
+
+                        if (side === 1) {
+                            const pole = createUtilityPole();
+                            const polePos = pt.clone().add(normal.clone().multiplyScalar(RIVER_WIDTH / 2 + 5.5));
+                            pole.position.copy(polePos);
+                            pole.position.y = LAND_HEIGHT + 0.2;
+                            scene.add(pole);
+                        }
+                    }
+
+                    // 6. 街並み・ビル群
+                    if (i % 5 === 0 && i > 1 && i < samples - 2) {
+                        const bWidth = 8 + Math.random() * 4;
+                        const bHeight = 12 + Math.random() * 15;
+                        const bDepth = 8 + Math.random() * 4;
+                        const bColor = buildingColors[Math.floor(Math.random() * buildingColors.length)];
+
+                        const building = createCityBuilding(bWidth, bHeight, bDepth, bColor);
+                        const buildPos = pt.clone().add(normal.clone().multiplyScalar(sideFactor * (RIVER_WIDTH / 2 + 12 + Math.random() * 2)));
+                        building.position.copy(buildPos);
+                        building.position.y = LAND_HEIGHT + 0.2;
+                        building.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, -1), tangent);
+                        scene.add(building);
+                    }
+                });
+            }
+
+            // 左右の陸地（歩道）と完全に直結する道路橋の生成
+            createBridge(riverCurve.getPointAt(0.35), riverCurve.getTangentAt(0.35));
+            createBridge(riverCurve.getPointAt(0.70), riverCurve.getTangentAt(0.70));
+            createRocks();
+            createGoalGate(riverCurve.getPointAt(0.96), riverCurve.getTangentAt(0.96));
+        }
+
+        function createRocks() {
+            const rockGeo = new THREE.DodecahedronGeometry(1.2, 1);
+            const rockMat = new THREE.MeshStandardMaterial({ color: 0x5a5a5a, roughness: 0.9 });
+            const rockRatios = [0.15, 0.25, 0.45, 0.55, 0.65, 0.80, 0.88];
+            rockRatios.forEach((ratio) => {
+                const pt = riverCurve.getPointAt(ratio);
+                const tangent = riverCurve.getTangentAt(ratio).normalize();
+                const normal = new THREE.Vector3(-tangent.z, 0, tangent.x).normalize();
+                const offset = (Math.random() - 0.5) * 10;
+                const rockPos = pt.clone().add(normal.multiplyScalar(offset));
+                const rock = new THREE.Mesh(rockGeo, rockMat);
+                rock.position.copy(rockPos);
+                rock.position.y = 0.2;
+                rock.scale.set(1 + Math.random(), 0.8 + Math.random() * 0.5, 1 + Math.random());
+                rock.rotation.set(Math.random() * Math.PI, Math.random() * Math.PI, 0);
+                rock.castShadow = true;
+                scene.add(rock);
+                obstacles.push({ position: rock.position, radius: 1.5 });
+            });
+        }
+
+        // 左右の陸地（歩道）としっかり接続する橋のモデリング
+        function createBridge(pt, tangent) {
+            const normal = new THREE.Vector3(-tangent.z, 0, tangent.x).normalize();
+            const bridgeGroup = new THREE.Group();
+
+            // 橋の幅：川幅 (RIVER_WIDTH=16) + 左右の歩道・陸地部分 (12m) ＝ 28m の長さで完全アプローチ接続
+            const bridgeLength = RIVER_WIDTH + 14;
+            const bridgeGeo = new THREE.BoxGeometry(bridgeLength, 1.2, 7);
+            const bridgeMat = new THREE.MeshStandardMaterial({ color: 0x757575, roughness: 0.7 });
+            const bridge = new THREE.Mesh(bridgeGeo, bridgeMat);
+            // 橋の天板の高さ（Y座標）を陸地（LAND_HEIGHT = 1.8）と完全に揃える
+            bridge.position.y = LAND_HEIGHT + 0.6;
+            bridge.castShadow = true;
+            bridge.receiveShadow = true;
+            bridgeGroup.add(bridge);
+
+            // 橋の上の道路・アスファルト面
+            const roadSurface = new THREE.Mesh(
+                new THREE.BoxGeometry(bridgeLength, 0.05, 6.6),
+                new THREE.MeshStandardMaterial({ color: 0x333333 })
+            );
+            roadSurface.position.y = LAND_HEIGHT + 1.22;
+            bridgeGroup.add(roadSurface);
+
+            // 橋の上の欄干・高欄（フェンス）
+            const railingGeo = new THREE.BoxGeometry(bridgeLength, 0.8, 0.2);
+            const railingMat = new THREE.MeshStandardMaterial({ color: 0xeeeeee, metalness: 0.3 });
+            
+            const rail1 = new THREE.Mesh(railingGeo, railingMat);
+            rail1.position.set(0, LAND_HEIGHT + 1.6, 3.3);
+            const rail2 = new THREE.Mesh(railingGeo, railingMat);
+            rail2.position.set(0, LAND_HEIGHT + 1.6, -3.3);
+            bridgeGroup.add(rail1, rail2);
+
+            // 橋脚 (Pillar) - 水面から橋裏までしっかり支える
+            const pillarMat = new THREE.MeshStandardMaterial({ color: 0x424242 });
+            const pillarHeight = LAND_HEIGHT + 0.8;
+            [-5.5, 5.5].forEach(offset => {
+                const pillar = new THREE.Mesh(new THREE.CylinderGeometry(0.8, 0.9, pillarHeight), pillarMat);
+                pillar.position.set(offset, pillarHeight / 2 - 0.2, 0);
+                pillar.castShadow = true;
+                bridgeGroup.add(pillar);
+                obstacles.push({ position: pt.clone().add(normal.clone().multiplyScalar(offset)), radius: 1.2 });
+            });
+
+            bridgeGroup.position.copy(pt);
+            bridgeGroup.quaternion.setFromUnitVectors(new THREE.Vector3(1, 0, 0), normal);
+            scene.add(bridgeGroup);
+        }
+
+        function createGoalGate(pt, tangent) {
+            const normal = new THREE.Vector3(-tangent.z, 0, tangent.x).normalize();
+            const gateGroup = new THREE.Group();
+            const post1 = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.3, 6), new THREE.MeshStandardMaterial({ color: 0xee2b2b }));
+            post1.position.set(-RIVER_WIDTH/2 + 1, 3, 0);
+            const post2 = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.3, 6), new THREE.MeshStandardMaterial({ color: 0xee2b2b }));
+            post2.position.set(RIVER_WIDTH/2 - 1, 3, 0);
+            const banner = new THREE.Mesh(new THREE.BoxGeometry(RIVER_WIDTH - 2, 1.2, 0.2), new THREE.MeshStandardMaterial({ color: 0xffffff }));
+            banner.position.set(0, 5, 0);
+            gateGroup.add(post1, post2, banner);
+            gateGroup.position.copy(pt);
+            gateGroup.quaternion.setFromUnitVectors(new THREE.Vector3(1, 0, 0), normal);
+            scene.add(gateGroup);
+        }
+
+        buildEnvironment();
+
+        // --- パーティクルシステム ---
+        const splashParticles = [];
+        const wakeParticles = [];
+
+        function createSplash(pos) {
+            for (let i = 0; i < 4; i++) {
+                const pGeo = new THREE.SphereGeometry(0.06 + Math.random() * 0.05, 4, 4);
+                const pMat = new THREE.MeshBasicMaterial({ color: 0xe0f7fa, transparent: true, opacity: 0.8 });
+                const p = new THREE.Mesh(pGeo, pMat);
+                p.position.copy(pos).add(new THREE.Vector3((Math.random() - 0.5) * 0.2, 0, (Math.random() - 0.5) * 0.2));
+                p.velocity = new THREE.Vector3(
+                    (Math.random() - 0.5) * 1.5,
+                    1.5 + Math.random() * 1.5,
+                    (Math.random() - 0.5) * 1.5
+                );
+                p.life = 0.3 + Math.random() * 0.2;
+                scene.add(p);
+                splashParticles.push(p);
+            }
+        }
+
+        function createWake(pos, forwardVec) {
+            const sideVec = new THREE.Vector3(-forwardVec.z, 0, forwardVec.x).normalize();
+            [-1, 1].forEach(side => {
+                const wakeGeo = new THREE.PlaneGeometry(0.25, 0.25);
+                const wakeMat = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.5, side: THREE.DoubleSide });
+                const wake = new THREE.Mesh(wakeGeo, wakeMat);
+                wake.rotation.x = -Math.PI / 2;
+                wake.position.copy(pos).add(sideVec.clone().multiplyScalar(side * 0.35));
+                wake.position.y = -0.15;
+                wake.scaleVel = 2.0;
+                wake.life = 0.8;
+                scene.add(wake);
+                wakeParticles.push(wake);
+            });
+        }
+
+        function updateParticles(delta) {
+            for (let i = splashParticles.length - 1; i >= 0; i--) {
+                const p = splashParticles[i];
+                p.life -= delta;
+                p.position.addScaledVector(p.velocity, delta);
+                p.velocity.y -= 9.8 * delta;
+                p.material.opacity = p.life * 2;
+                if (p.life <= 0) {
+                    scene.remove(p);
+                    splashParticles.splice(i, 1);
+                }
+            }
+
+            for (let i = wakeParticles.length - 1; i >= 0; i--) {
+                const w = wakeParticles[i];
+                w.life -= delta;
+                w.scale.addScalar(w.scaleVel * delta);
+                w.material.opacity = w.life * 0.5;
+                if (w.life <= 0) {
+                    scene.remove(w);
+                    wakeParticles.splice(i, 1);
+                }
+            }
+        }
+
+        // --- 4色カラー定義 ---
+        const BOAT_COLORS = [
+            { name: "赤色艇", hex: 0xe63946, textCol: "text-red-400", bgCol: "bg-red-500/20" },
+            { name: "青色艇", hex: 0x00b4d8, textCol: "text-cyan-400", bgCol: "bg-cyan-500/20" },
+            { name: "黄色艇", hex: 0xffb703, textCol: "text-yellow-400", bgCol: "bg-yellow-500/20" },
+            { name: "緑色艇", hex: 0x2a9d8f, textCol: "text-emerald-400", bgCol: "bg-emerald-500/20" }
+        ];
+
+        function createCanoeLayerMesh(colorHex, length, width, height) {
+            const shape = new THREE.Shape();
+            const halfL = length / 2;
+            const halfW = width / 2;
+
+            shape.moveTo(0, -halfL);
+            shape.bezierCurveTo(halfW, -halfL * 0.4, halfW, halfL * 0.4, 0, halfL);
+            shape.bezierCurveTo(-halfW, halfL * 0.4, -halfW, -halfL * 0.4, 0, -halfL);
+
+            const extrudeSettings = {
+                steps: 1,
+                depth: height,
+                bevelEnabled: true,
+                bevelThickness: height * 0.4,
+                bevelSize: width * 0.2,
+                bevelOffset: 0,
+                bevelSegments: 3
+            };
+
+            const geo = new THREE.ExtrudeGeometry(shape, extrudeSettings);
+            geo.rotateX(Math.PI / 2);
+            geo.center();
+
+            const mat = new THREE.MeshStandardMaterial({
+                color: colorHex,
+                roughness: 0.3,
+                metalness: 0.2,
+                transparent: true,
+                opacity: 1.0
+            });
+
+            const mesh = new THREE.Mesh(geo, mat);
+            mesh.castShadow = true;
+            mesh.receiveShadow = true;
+            return mesh;
+        }
+
+        function createSharpenedCanoe(primaryColorHex) {
+            const canoeGroup = new THREE.Group();
+            const materialsToControl = [];
+
+            // 3層舟体
+            const layerColors = [0x333333, 0xffd700, primaryColorHex];
+            const lengths = [3.8, 3.9, 4.0];
+            const widths = [0.6, 0.65, 0.7];
+            const heights = [0.18, 0.18, 0.18];
+
+            layerColors.forEach((col, idx) => {
+                const layerMesh = createCanoeLayerMesh(col, lengths[idx], widths[idx], heights[idx]);
+                layerMesh.position.y = idx * 0.14;
+                canoeGroup.add(layerMesh);
+                materialsToControl.push(layerMesh.material);
+            });
+
+            // 選手3Dモデル
+            const rower = createHumanCharacter(primaryColorHex, 0x111111, true);
+            rower.position.set(0, 0.1, -0.1);
+            canoeGroup.add(rower);
+
+            // ハの字構造オール
+            function createPaddlePivot(isRight) {
+                const side = isRight ? 1 : -1;
+
+                const basePivotGroup = new THREE.Group();
+                basePivotGroup.position.set(side * 0.45, 0.65, -0.1);
+                basePivotGroup.rotation.z = side * 0.75;
+
+                const strokeGroup = new THREE.Group();
+
+                const shaftGeo = new THREE.CylinderGeometry(0.03, 0.03, 1.8);
+                const shaftMat = new THREE.MeshStandardMaterial({ color: 0x5c4033, transparent: true, opacity: 1.0 });
+                materialsToControl.push(shaftMat);
+                const shaft = new THREE.Mesh(shaftGeo, shaftMat);
+                shaft.position.y = -0.9;
+                strokeGroup.add(shaft);
+
+                const bladeGeo = new THREE.SphereGeometry(0.25, 16, 16);
+                bladeGeo.scale(0.08, 1.8, 0.7);
+                const bladeMat = new THREE.MeshStandardMaterial({ color: 0x111111, roughness: 0.4, transparent: true, opacity: 1.0 });
+                materialsToControl.push(bladeMat);
+                const blade = new THREE.Mesh(bladeGeo, bladeMat);
+                blade.position.y = -1.7;
+                blade.castShadow = true;
+                strokeGroup.add(blade);
+
+                basePivotGroup.add(strokeGroup);
+
+                return { basePivot: basePivotGroup, strokeGroup: strokeGroup, blade: blade };
+            }
+
+            const leftPaddleObj = createPaddlePivot(false);
+            const rightPaddleObj = createPaddlePivot(true);
+
+            canoeGroup.add(leftPaddleObj.basePivot);
+            canoeGroup.add(rightPaddleObj.basePivot);
+
+            canoeGroup.scale.set(0.9, 0.9, 0.9);
+
+            return {
+                mesh: canoeGroup,
+                leftStrokeGroup: leftPaddleObj.strokeGroup,
+                leftBlade: leftPaddleObj.blade,
+                rightStrokeGroup: rightPaddleObj.strokeGroup,
+                rightBlade: rightPaddleObj.blade,
+                materials: materialsToControl
+            };
+        }
+
+        class Canoe {
+            constructor(isPlayer, name, colorData, startOffset, maxSpeedSetting) {
+                this.isPlayer = isPlayer;
+                this.name = name;
+                this.colorData = colorData;
+                const obj = createSharpenedCanoe(colorData.hex);
+                this.mesh = obj.mesh;
+                this.leftStrokeGroup = obj.leftStrokeGroup;
+                this.leftBlade = obj.leftBlade;
+                this.rightStrokeGroup = obj.rightStrokeGroup;
+                this.rightBlade = obj.rightBlade;
+                this.materials = obj.materials;
+
+                scene.add(this.mesh);
+
+                this.progress = 0;
+                this.offset = startOffset;
+                this.speed = 0;
+                this.maxSpeed = maxSpeedSetting;
+                this.angle = 0;
+                this.isFlipped = false;
+                this.flipTimer = 0;
+                this.finished = false;
+                this.finishTime = 0;
+
+                this.invincibleTimer = 0;
+
+                this.leftStroke = 0;
+                this.rightStroke = 0;
+
+                this.reset(startOffset);
+            }
+
+            reset(startOffset) {
+                this.progress = 0.005;
+                this.offset = startOffset;
+                this.speed = 0;
+                this.angle = 0;
+                this.isFlipped = false;
+                this.flipTimer = 0;
+                this.invincibleTimer = 0;
+                this.finished = false;
+                this.finishTime = 0;
+                this.leftStroke = 0;
+                this.rightStroke = 0;
+                this.setOpacity(1.0);
+                this.mesh.rotation.set(0, 0, 0);
+                this.updatePosition();
+            }
+
+            setOpacity(opacity) {
+                this.materials.forEach(mat => {
+                    mat.opacity = opacity;
+                });
+            }
+
+            updatePosition() {
+                const pt = riverCurve.getPointAt(Math.min(this.progress, 1.0));
+                const tangent = riverCurve.getTangentAt(Math.min(this.progress, 1.0)).normalize();
+                const normal = new THREE.Vector3(-tangent.z, 0, tangent.x).normalize();
+
+                const pos = pt.clone().add(normal.multiplyScalar(this.offset));
+                this.mesh.position.copy(pos);
+
+                const lookTarget = pt.clone().add(tangent.clone().multiplyScalar(5)).add(normal.clone().multiplyScalar(this.offset + this.angle * 2));
+                this.mesh.lookAt(lookTarget);
+
+                if (this.isFlipped) {
+                    this.flipTimer += 0.016;
+                    const flipProgress = Math.min(this.flipTimer / 1.0, 1.0);
+                    this.mesh.rotation.z = Math.sin(flipProgress * Math.PI) * Math.PI;
+
+                    if (this.flipTimer >= 1.0) {
+                        this.isFlipped = false;
+                        this.flipTimer = 0;
+                        this.mesh.rotation.z = 0;
+                        this.angle = 0;
+                    }
+                }
+            }
+
+            triggerFlip() {
+                if (!this.isFlipped && this.invincibleTimer <= 0) {
+                    this.isFlipped = true;
+                    this.flipTimer = 0;
+                    this.invincibleTimer = 3.0;
+                    this.speed = -1.5;
+                    soundSys.playCrash();
+                }
+            }
+
+            updatePaddleAnimation(strokeGroup, bladeMesh, strokeVal) {
+                if (strokeVal > 0.001) {
+                    const cycle = strokeVal * Math.PI * 2;
+                    strokeGroup.rotation.x = Math.sin(cycle) * 0.95;
+                    
+                    const worldPos = new THREE.Vector3();
+                    bladeMesh.getWorldPosition(worldPos);
+                    if (worldPos.y < 0.05 && Math.sin(cycle) > 0.2) {
+                        createSplash(worldPos);
+                    }
+                } else {
+                    strokeGroup.rotation.x = THREE.MathUtils.lerp(strokeGroup.rotation.x, 0, 0.15);
+                }
+            }
+
+            update(delta, inputs) {
+                if (this.finished) return;
+
+                if (this.invincibleTimer > 0) {
+                    this.invincibleTimer -= delta;
+                    const blinkOpacity = 0.35 + Math.sin(Date.now() * 0.02) * 0.15;
+                    this.setOpacity(blinkOpacity);
+
+                    if (this.invincibleTimer <= 0) {
+                        this.invincibleTimer = 0;
+                        this.setOpacity(1.0);
+                    }
+                }
+
+                if (this.isFlipped) {
+                    this.speed = THREE.MathUtils.lerp(this.speed, 0, delta * 3);
+                    this.updatePosition();
+                    return;
+                }
+
+                let activeLeft = false;
+                let activeRight = false;
+
+                if (this.isPlayer) {
+                    let steer = 0;
+                    if (inputs.left && inputs.right) {
+                        steer = 0;
+                        this.speed = THREE.MathUtils.lerp(this.speed, this.maxSpeed, delta * 1.5);
+                        activeLeft = true;
+                        activeRight = true;
+                    } else if (inputs.right) {
+                        steer = -1.2;
+                        this.speed = THREE.MathUtils.lerp(this.speed, this.maxSpeed * 0.85, delta * 1.5);
+                        activeRight = true;
+                    } else if (inputs.left) {
+                        steer = 1.2;
+                        this.speed = THREE.MathUtils.lerp(this.speed, this.maxSpeed * 0.85, delta * 1.5);
+                        activeLeft = true;
+                    } else {
+                        this.speed = THREE.MathUtils.lerp(this.speed, 0, delta * 1.0);
+                    }
+
+                    this.angle = THREE.MathUtils.lerp(this.angle, steer, delta * 4);
+                    this.offset += this.angle * delta * 4.5;
+                } else {
+                    // AI
+                    this.speed = THREE.MathUtils.lerp(this.speed, this.maxSpeed, delta * 0.8);
+                    const targetOffset = Math.sin(Date.now() * 0.001 + this.maxSpeed) * 3;
+                    this.offset = THREE.MathUtils.lerp(this.offset, targetOffset, delta * 0.5);
+
+                    if (Math.sin(Date.now() * 0.008) > 0) activeRight = true;
+                    else activeLeft = true;
+                }
+
+                const strokeSpeed = 2.8 * delta;
+                if (activeLeft) this.leftStroke = (this.leftStroke + strokeSpeed) % 1.0;
+                else this.leftStroke = 0;
+
+                if (activeRight) this.rightStroke = (this.rightStroke + strokeSpeed) % 1.0;
+                else this.rightStroke = 0;
+
+                this.updatePaddleAnimation(this.leftStrokeGroup, this.leftBlade, this.leftStroke);
+                this.updatePaddleAnimation(this.rightStrokeGroup, this.rightBlade, this.rightStroke);
+
+                // 移動
+                const progressDelta = (this.speed * delta) / COURSE_LENGTH;
+                this.progress += progressDelta;
+
+                if (this.speed > 2) {
+                    const tangent = riverCurve.getTangentAt(Math.min(this.progress, 1.0)).normalize();
+                    createWake(this.mesh.position, tangent);
+                }
+
+                // 壁の当たり判定
+                const maxOffset = RIVER_WIDTH / 2 - 1.2;
+                if (Math.abs(this.offset) > maxOffset) {
+                    this.offset = Math.sign(this.offset) * maxOffset;
+                    this.triggerFlip();
+                }
+
+                // 障害物の当たり判定
+                if (this.invincibleTimer <= 0) {
+                    const myPos = this.mesh.position;
+                    for (let obs of obstacles) {
+                        const dist = myPos.distanceTo(obs.position);
+                        if (dist < obs.radius + 0.8) {
+                            this.triggerFlip();
+                            break;
+                        }
+                    }
+                }
+
+                // ゴール通過判定
+                if (this.progress >= 0.95 && !this.finished) {
+                    this.progress = 0.95;
+                    this.finished = true;
+                    this.finishTime = raceTime;
+                    if (!finishOrder.includes(this)) {
+                        finishOrder.push(this);
+                    }
+                }
+
+                this.updatePosition();
+            }
+        }
+
+        let canoes = [];
+        let playerCanoe = null;
+
+        function setupCanoes() {
+            canoes.forEach(c => scene.remove(c.mesh));
+            canoes = [];
+
+            const shuffledColors = [...BOAT_COLORS].sort(() => Math.random() - 0.5);
+            const playerIndex = Math.floor(Math.random() * 4);
+            const laneOffsets = [-5, -1.8, 1.8, 5];
+
+            let cpuCounter = 1;
+            const cpuSpeeds = [6.5, 9.2, 10.5];
+
+            for (let i = 0; i < 4; i++) {
+                const colorData = shuffledColors[i];
+                const offset = laneOffsets[i];
+
+                if (i === playerIndex) {
+                    playerCanoe = new Canoe(true, `あなた (${colorData.name})`, colorData, offset, 14.0);
+                    canoes.push(playerCanoe);
+                } else {
+                    const cpuName = `CPU${cpuCounter}`;
+                    const speed = cpuSpeeds[cpuCounter - 1] || 9.0;
+                    cpuCounter++;
+
+                    const cpuCanoe = new Canoe(false, `${cpuName} (${colorData.name})`, colorData, offset, speed);
+                    canoes.push(cpuCanoe);
+                }
+            }
+
+            playerBoatInfo.className = `p-3 rounded-xl border text-center font-bold ${playerCanoe.colorData.bgCol} border-white/30`;
+            playerBoatInfo.innerHTML = `
+                あなた: <span class="${playerCanoe.colorData.textCol}">${playerCanoe.colorData.name}</span> (${playerIndex + 1}番レーン)
+            `;
+        }
+
+        // カメラ追従 (川とプレイヤーを見下ろすアングルを最適化)
+        function updateCamera() {
+            if (!playerCanoe) return;
+            const pPos = playerCanoe.mesh.position;
+            const pt = riverCurve.getPointAt(Math.min(playerCanoe.progress, 1.0));
+            const tangent = riverCurve.getTangentAt(Math.min(playerCanoe.progress, 1.0)).normalize();
+
+            const camTargetPos = pPos.clone()
+                .sub(tangent.clone().multiplyScalar(9.5))
+                .add(new THREE.Vector3(0, 6.2, 0)); // カメラ高さを調整
+
+            camera.position.lerp(camTargetPos, 0.1);
+            const lookAtTarget = pPos.clone().add(tangent.clone().multiplyScalar(10));
+            camera.lookAt(lookAtTarget);
+        }
+
+        // メインアニメーションループ
+        let clock = new THREE.Clock();
+
+        function animate() {
+            requestAnimationFrame(animate);
+            const delta = Math.min(clock.getDelta(), 0.1);
+
+            if (gameState === 'RACING') {
+                raceTime += delta;
+                timerDisplay.textContent = raceTime.toFixed(2);
+
+                canoes.forEach(c => c.update(delta, { left: inputLeft, right: inputRight }));
+
+                const activeOrder = [...canoes].sort((a, b) => {
+                    if (a.finished && b.finished) {
+                        return finishOrder.indexOf(a) - finishOrder.indexOf(b);
+                    }
+                    if (a.finished) return -1;
+                    if (b.finished) return 1;
+                    return b.progress - a.progress;
+                });
+
+                const playerRank = activeOrder.indexOf(playerCanoe) + 1;
+                currentRankDisplay.textContent = playerRank;
+
+                const remainingDist = Math.max(0, Math.floor((0.95 - playerCanoe.progress) * COURSE_LENGTH));
+                distanceDisplay.textContent = remainingDist;
+
+                if (playerCanoe.finished && gameState === 'RACING') {
+                    canoes.forEach(c => {
+                        if (!finishOrder.includes(c)) {
+                            c.finished = true;
+                            c.finishTime = raceTime + Math.random() * 2;
+                            finishOrder.push(c);
+                        }
+                    });
+                    finishGame(finishOrder);
+                }
+            }
+
+            updateParticles(delta);
+            updateCamera();
+            renderer.render(scene, camera);
+        }
+
+        // タイマー＆モーダル関係
+        function setAutoCloseTimer(type) {
+            clearTimeout(autoStartTimer);
+            clearTimeout(autoResultTimer);
+
+            if (type === 'START') {
+                autoStartTimer = setTimeout(() => {
+                    if (gameState === 'INIT') closeStartModalAndStart();
+                }, 3000);
+            } else if (type === 'RESULT') {
+                autoResultTimer = setTimeout(() => {
+                    if (gameState === 'FINISHED') closeResultModalAndRestart();
+                }, 5000);
+            }
+        }
+
+        function showStartModal() {
+            gameState = 'INIT';
+            finishOrder = [];
+            raceTime = 0;
+            timerDisplay.textContent = "0.00";
+            updateMoneyUI();
+            
+            setupCanoes();
+
+            startModal.classList.remove('hidden');
+            resultModal.classList.add('hidden');
+            gameHud.classList.add('hidden');
+            countdownOverlay.classList.add('hidden');
+
+            setAutoCloseTimer('START');
+        }
+
+        function closeStartModalAndStart() {
+            if (gameState !== 'INIT') return;
+            clearTimeout(autoStartTimer);
+
+            money -= ENTRY_FEE;
+            updateMoneyUI();
+
+            startModal.classList.add('hidden');
+            gameHud.classList.remove('hidden');
+
+            startCountdown();
+        }
+
+        function startCountdown() {
+            gameState = 'STARTING';
+            countdownOverlay.classList.remove('hidden');
+            
+            let count = 3;
+            countdownOverlay.textContent = count;
+            soundSys.playBeep(false);
+
+            const timer = setInterval(() => {
+                count--;
+                if (count > 0) {
+                    countdownOverlay.textContent = count;
+                    soundSys.playBeep(false);
+                } else if (count === 0) {
+                    countdownOverlay.textContent = "GO!";
+                    countdownOverlay.style.color = "#00ff88";
+                    soundSys.playBeep(true);
+                } else {
+                    clearInterval(timer);
+                    countdownOverlay.classList.add('hidden');
+                    countdownOverlay.style.color = "#fff";
+                    gameState = 'RACING';
+                    raceTime = 0;
+                    clock.start();
+                }
+            }, 1000);
+        }
+
+        function finishGame(finalOrder) {
+            gameState = 'FINISHED';
+            soundSys.playGoal();
+
+            const playerRank = finalOrder.indexOf(playerCanoe) + 1;
+            
+            let prize = 0;
+            if (playerRank === 1) prize = 10000;
+            else if (playerRank === 2) prize = 5000;
+            else if (playerRank === 3) prize = 1000;
+            else if (playerRank === 4) prize = 0;
+
+            money += prize;
+            updateMoneyUI();
+
+            document.getElementById('result-rank-display').textContent = `${playerRank}位`;
+            document.getElementById('result-time-display').textContent = `タイム: ${playerCanoe.finishTime.toFixed(2)}秒`;
+            document.getElementById('result-prize-display').textContent = `獲得賞金: ￥${prize.toLocaleString()}`;
+
+            const tbody = document.getElementById('result-table-body');
+            tbody.innerHTML = '';
+
+            finalOrder.forEach((c, idx) => {
+                const tr = document.createElement('tr');
+                const isP = c.isPlayer;
+                tr.className = isP ? `font-bold ${c.colorData.bgCol} ${c.colorData.textCol}` : "";
+                
+                let pAmt = "￥0";
+                if (idx === 0) pAmt = "￥10,000";
+                if (idx === 1) pAmt = "￥5,000";
+                if (idx === 2) pAmt = "￥1,000";
+                if (idx === 3) pAmt = "￥0";
+
+                tr.innerHTML = `
+                    <td class="p-2">${idx + 1}位</td>
+                    <td class="p-2">${c.name}</td>
+                    <td class="p-2 text-center font-mono text-cyan-300">${c.finishTime.toFixed(2)}秒</td>
+                    <td class="p-2 text-right font-semibold">${pAmt}</td>
+                `;
+                tbody.appendChild(tr);
+            });
+
+            resultModal.classList.remove('hidden');
+            setAutoCloseTimer('RESULT');
+        }
+
+        function closeResultModalAndRestart() {
+            clearTimeout(autoResultTimer);
+            showStartModal();
+        }
+
+        // イベントリスナー
+        btnStartClose.addEventListener('click', closeStartModalAndStart);
+        btnResultClose.addEventListener('click', closeResultModalAndRestart);
+
+        const setInput = (btn, isLeft, isPressed) => {
+            if (isLeft) inputLeft = isPressed;
+            else inputRight = isPressed;
+
+            if (isPressed) btn.classList.add('active');
+            else btn.classList.remove('active');
+        };
+
+        btnLeft.addEventListener('pointerdown', (e) => { e.preventDefault(); soundSys.init(); setInput(btnLeft, true, true); });
+        btnLeft.addEventListener('pointerup', (e) => { e.preventDefault(); setInput(btnLeft, true, false); });
+        btnLeft.addEventListener('pointerleave', (e) => { setInput(btnLeft, true, false); });
+
+        btnRight.addEventListener('pointerdown', (e) => { e.preventDefault(); soundSys.init(); setInput(btnRight, false, true); });
+        btnRight.addEventListener('pointerup', (e) => { e.preventDefault(); setInput(btnRight, false, false); });
+        btnRight.addEventListener('pointerleave', (e) => { setInput(btnRight, false, false); });
+
+        window.addEventListener('keydown', (e) => {
+            soundSys.init();
+            if (e.key === 'ArrowLeft' || e.key === 'a') setInput(btnLeft, true, true);
+            if (e.key === 'ArrowRight' || e.key === 'd') setInput(btnRight, false, true);
+        });
+        window.addEventListener('keyup', (e) => {
+            if (e.key === 'ArrowLeft' || e.key === 'a') setInput(btnLeft, true, false);
+            if (e.key === 'ArrowRight' || e.key === 'd') setInput(btnRight, false, false);
+        });
+
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+
+        window.onload = () => {
+            showStartModal();
+            animate();
+        };
+    </script>
+</body>
+</html>
