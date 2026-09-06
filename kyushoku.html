@@ -1317,35 +1317,45 @@
         }
 
         function checkCompletionAndEmotion(type, index) {
-            let targetStack = type === 'counter' ? customers[index].counterStack : tableSlots[index];
+            const targetStack = type === 'counter' ? customers[index].counterStack : tableSlots[index];
+            if (!targetStack || targetStack.length === 0) return;
 
-            if (targetStack && targetStack.length >= 10) {
-                const food = targetStack[0];
+            // 【重要】完成判定は「スタック全体」ではなく「一番上で連続している同じ食材」だけを見る。
+            // 以前は targetStack[0] と targetStack.length >= 10 で判定していたため、
+            // 複数食材が混ざった10枚以上のスタックでも、スタック丸ごと動物へ移動してしまっていた。
+            const topFoodId = targetStack[targetStack.length - 1].id;
+            const topCount = getTopContinuousCount(targetStack);
+            if (topCount < 10) return;
 
-                if (type === 'counter') {
-                    if (food.id === customers[index].requestFood.id) {
-                        triggerUnlockSuccess(index, targetStack.length);
-                    }
-                } else {
-                    // 同じ食材を要求する動物が複数いても、同じスタックを二重提供しない。
-                    const customerIndex = customers.findIndex((cust, cIdx) =>
-                        food.id === cust.requestFood.id &&
-                        cust.counterStack.length === 0 &&
-                        !completionInProgress.has(cIdx)
-                    );
+            if (type === 'counter') {
+                const customer = customers[index];
+                if (completionInProgress.has(index)) return;
+                if (topFoodId !== customer.requestFood.id) return;
 
-                    if (customerIndex !== -1) {
-                        const count = targetStack.length;
-                        if (count > 0) {
-                            const deliveredStack = [...targetStack];
-                            completionInProgress.add(customerIndex);
-                            customers[customerIndex].counterStack = deliveredStack;
-                            tableSlots[index] = [];
-                            triggerUnlockSuccess(customerIndex, count);
-                        }
-                    }
-                }
+                completionInProgress.add(index);
+                // 動物前では10枚単位で完成。余分な同食材があっても、完成分だけを処理する。
+                triggerUnlockSuccess(index, 10);
+                return;
             }
+
+            // 皿置き場から動物へ移す場合も、上から連続した「要求食材の10枚」だけを移動。
+            // 下に別の食材が残っている場合、その皿は皿置き場に残す。
+            const customerIndex = customers.findIndex((cust, cIdx) =>
+                topFoodId === cust.requestFood.id &&
+                cust.counterStack.length === 0 &&
+                !completionInProgress.has(cIdx)
+            );
+
+            if (customerIndex === -1) return;
+
+            const deliveredCount = 10;
+            const deliveredStack = targetStack.slice(targetStack.length - deliveredCount);
+            const remainingStack = targetStack.slice(0, targetStack.length - deliveredCount);
+
+            completionInProgress.add(customerIndex);
+            customers[customerIndex].counterStack = deliveredStack;
+            tableSlots[index] = remainingStack;
+            triggerUnlockSuccess(customerIndex, deliveredCount);
         }
 
         function calculateMultiplierBonus(rawAmount) {
@@ -1605,7 +1615,7 @@
                                 <span class="text-sm animate-bounce ml-0.5">${emotionEmoji}</span>
                             ` : ''}
                             <span class="text-[10px] font-black text-amber-900 bg-amber-100 px-1 py-0.2 rounded-full border border-amber-300">
-                                ${cStack.length}/20
+                                ${cStack.length}/10
                             </span>
                         </div>
 
