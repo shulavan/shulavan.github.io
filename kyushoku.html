@@ -1,0 +1,1640 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>えどがわ給食当番</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body {
+            background-color: #1a2e1d;
+            font-family: 'Hiragino Kaku Gothic ProN', 'メイリオ', sans-serif;
+            user-select: none;
+            -webkit-user-select: none;
+            touch-action: manipulation;
+        }
+
+        /* 教室・木目調の背景 */
+        .classroom-bg {
+            background: linear-gradient(to bottom, 
+                #183d29 0%, #183d29 25%, 
+                #8c5c32 25%, #6a401c 29%, 
+                #bc8852 100%
+            );
+        }
+
+        /* 黒板ボード */
+        .chalkboard {
+            background-color: #1e4530;
+            border: 5px solid #5a3717;
+            box-shadow: inset 0 0 12px rgba(0,0,0,0.6);
+        }
+
+        /* 木目テーブル枠 */
+        .wood-shelf {
+            background: #b68249;
+            border: 4px solid #5e3a18;
+            box-shadow: 0 6px 12px rgba(0,0,0,0.35), inset 0 2px 4px rgba(255,255,255,0.3);
+        }
+
+        .slot-base {
+            background: rgba(70, 40, 15, 0.28);
+            border: 3px dashed rgba(255, 255, 255, 0.5);
+            border-radius: 9999px;
+            transition: all 0.2s ease;
+        }
+
+        .speech-bubble {
+            position: relative;
+            background: #ffffff;
+            border-radius: 9999px;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.25);
+        }
+        .speech-bubble:after {
+            content: '';
+            position: absolute;
+            bottom: -6px;
+            left: 50%;
+            transform: translateX(-50%);
+            border-width: 6px 6px 0;
+            border-style: solid;
+            border-color: #ffffff transparent;
+            display: block;
+            width: 0;
+        }
+
+        /* バスケット横の吹き出し */
+        .basket-speech-bubble {
+            position: relative;
+            background: #ffffff;
+            border: 2px solid #ca8a04;
+            color: #451a03;
+            border-radius: 9999px;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+            animation: bounceIn 0.4s ease-out;
+        }
+        .basket-speech-bubble:after {
+            content: '';
+            position: absolute;
+            right: -8px;
+            top: 50%;
+            transform: translateY(-50%);
+            border-width: 6px 0 6px 8px;
+            border-style: solid;
+            border-color: transparent transparent transparent #ffffff;
+        }
+
+        /* フッター料理人吹き出し */
+        .chef-speech-bubble {
+            position: relative;
+            background: #ffffff;
+            border: 3px solid #713f12;
+            color: #451a03;
+            border-radius: 18px;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.25);
+        }
+        .chef-speech-bubble:before {
+            content: '';
+            position: absolute;
+            left: -12px;
+            top: 50%;
+            transform: translateY(-50%);
+            border-width: 6px 12px 6px 0;
+            border-style: solid;
+            border-color: transparent #713f12 transparent transparent;
+        }
+        .chef-speech-bubble:after {
+            content: '';
+            position: absolute;
+            left: -8px;
+            top: 50%;
+            transform: translateY(-50%);
+            border-width: 4px 10px 4px 0;
+            border-style: solid;
+            border-color: transparent #ffffff transparent transparent;
+        }
+
+        @keyframes bounceIn {
+            0% { transform: scale(0.3); opacity: 0; }
+            50% { transform: scale(1.1); }
+            100% { transform: scale(1); opacity: 1; }
+        }
+
+        @keyframes popUp {
+            0% { transform: translateY(100%) scale(0.6); opacity: 0; }
+            100% { transform: translateY(0) scale(1); opacity: 1; }
+        }
+        .animal-enter {
+            animation: popUp 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+        }
+
+        /* リアルお皿スタイル */
+        .real-plate {
+            border-radius: 50%;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.3), 
+                        inset 0 3px 5px rgba(255,255,255,0.6), 
+                        inset 0 -3px 5px rgba(0,0,0,0.2);
+            position: absolute;
+            transition: transform 0.2s ease, bottom 0.2s ease;
+        }
+
+        .real-plate-inner {
+            width: 82%;
+            height: 78%;
+            border-radius: 50%;
+            background: rgba(255,255,255,0.25);
+            box-shadow: inset 0 2px 4px rgba(0,0,0,0.2);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .lifted-plate-group {
+            transform: translateY(-30px) !important;
+            filter: drop-shadow(0 14px 10px rgba(0,0,0,0.5));
+            z-index: 30 !important;
+        }
+
+        .wood-btn {
+            background: linear-gradient(to bottom, #fde047, #f59e0b);
+            border: 2px solid #78350f;
+            box-shadow: 0 4px 0 #78350f;
+        }
+        .wood-btn:active {
+            transform: translateY(2px);
+            box-shadow: 0 2px 0 #78350f;
+        }
+
+        .item-btn {
+            background: linear-gradient(to bottom, #ffffff, #f3f4f6);
+            border: 2px solid #d1d5db;
+            box-shadow: 0 3px 0 #9ca3af;
+        }
+        .item-btn:active {
+            transform: translateY(2px);
+            box-shadow: 0 1px 0 #9ca3af;
+        }
+
+        @keyframes pulseGlow {
+            0%, 100% { transform: scale(1); box-shadow: 0 0 10px #f59e0b; }
+            50% { transform: scale(1.05); box-shadow: 0 0 20px #fbbf24; }
+        }
+        .ready-unlock {
+            animation: pulseGlow 1.2s infinite;
+            border-color: #fbbf24 !important;
+            background: rgba(251, 191, 36, 0.35) !important;
+        }
+
+        /* 皿一掃エフェクト */
+        .cleanup-sweep {
+            position: absolute;
+            inset: 0;
+            z-index: 45;
+            pointer-events: none;
+            overflow: hidden;
+            opacity: 0;
+        }
+
+        .cleanup-sweep::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            bottom: 0;
+            left: 100%;
+            width: 5px;
+            background: linear-gradient(to bottom, rgba(255,255,255,0.15), #fff 45%, rgba(255,255,255,0.15));
+            box-shadow: 0 0 14px 5px rgba(255,255,255,0.65);
+            transform: translateX(-50%);
+        }
+
+        .cleanup-sweep.active {
+            opacity: 1;
+        }
+
+        .cleanup-sweep.active::before {
+            animation: cleanupSweepLine 1.2s cubic-bezier(0.55, 0.05, 0.45, 0.95) forwards;
+        }
+
+        @keyframes cleanupSweepLine {
+            from { left: 100%; }
+            to { left: 0%; }
+        }
+
+        .cleanup-target {
+            animation: cleanupPlateDisappear 0.38s ease-in forwards;
+            animation-delay: var(--cleanup-delay, 0ms);
+        }
+
+        @keyframes cleanupPlateDisappear {
+            0% { opacity: 1; transform: scale(1) rotate(0deg); }
+            100% { opacity: 0; transform: scale(0.45) rotate(-8deg) translateY(8px); }
+        }
+
+        .cleanup-btn-disabled {
+            filter: grayscale(0.8);
+            opacity: 0.55;
+        }
+
+        /* =========================================================
+           スマホ用フッター表示安定化
+           flex-shrink-0 + mt-auto の組み合わせでは、縦長でない
+           スマホで子要素の合計高さが viewport を超えると、
+           フッターが #app の外側へ押し出され overflow:hidden で
+           丸ごと切り取られることがある。フッターを app 内の
+           absolute レイヤーとして固定し、dvh も併用して解決する。
+           ========================================================= */
+        body {
+            height: 100dvh;
+            min-height: 100dvh;
+        }
+
+        #app {
+            height: 100dvh !important;
+            min-height: 0;
+            position: relative;
+        }
+
+        .game-footer {
+            position: absolute !important;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            width: 100%;
+            height: 68px;
+            min-height: 68px !important;
+            margin-top: 0 !important;
+            box-sizing: border-box;
+            display: flex !important;
+            visibility: visible !important;
+            opacity: 1 !important;
+            z-index: 80 !important;
+            padding-bottom: max(6px, env(safe-area-inset-bottom));
+        }
+
+        .game-footer > div:first-child {
+            display: flex !important;
+            visibility: visible !important;
+            opacity: 1 !important;
+            min-width: 0;
+        }
+
+        .game-footer .chef-icon {
+            display: block !important;
+            visibility: visible !important;
+            flex-shrink: 0;
+        }
+
+        .game-footer .chef-speech-bubble {
+            display: block !important;
+            visibility: visible !important;
+            overflow: visible;
+        }
+
+        #cleanup-btn {
+            display: flex !important;
+            visibility: visible !important;
+            flex-shrink: 0 !important;
+        }
+
+        /* フッターと皿置き場が重ならないよう、スマホでは
+           皿置き場の高さを viewport に合わせて確保する。 */
+        @media (max-width: 640px) {
+            #app > .game-footer {
+                height: 68px;
+                min-height: 68px !important;
+            }
+
+            #app > .wood-shelf {
+                flex: 1 1 auto;
+                min-height: 0;
+                max-height: calc(100% - 390px);
+                margin-bottom: 72px;
+            }
+
+            #table-slots {
+                min-height: 0 !important;
+                height: 100%;
+                grid-template-rows: repeat(3, minmax(0, 1fr));
+            }
+
+            #table-slots > div {
+                height: auto !important;
+                min-height: 54px;
+            }
+        }
+
+        @media (max-width: 640px) and (max-height: 760px) {
+            #app > .wood-shelf {
+                max-height: calc(100% - 350px);
+            }
+            #app > .game-footer {
+                height: 64px;
+                min-height: 64px !important;
+            }
+            #table-slots > div {
+                min-height: 48px;
+            }
+        }
+
+        /* 小さいスマホでもフッターとゲーム盤面を同時に表示 */
+        @media (max-height: 760px) {
+            #app > .game-footer {
+                min-height: 58px;
+                height: 58px;
+            }
+            #app > .game-footer .chef-icon {
+                font-size: 2.35rem;
+            }
+            #app > .game-footer .chef-speech-bubble {
+                font-size: 9px;
+                padding: 3px 8px;
+            }
+            #table-slots {
+                min-height: 0 !important;
+            }
+            #table-slots > div {
+                height: 58px !important;
+            }
+            #table-slots > div > .relative {
+                transform: scale(0.92);
+                transform-origin: center bottom;
+            }
+        }
+    </style>
+</head>
+<body class="h-screen w-screen overflow-hidden flex justify-center items-center">
+
+    <!-- メインゲームコンテナ -->
+    <div id="app" class="relative w-full max-w-md h-full max-h-[920px] classroom-bg flex flex-col justify-start overflow-hidden shadow-2xl rounded-none md:rounded-2xl border-0 md:border-4 border-amber-900">
+        
+        <!-- 1. 上部黒板ヘッダー -->
+        <div class="px-2 pt-2 z-10 flex-shrink-0">
+            <div class="chalkboard rounded-xl p-2.5 text-white flex flex-col justify-between shadow-lg relative">
+                <!-- 黒板上部: タイトル、縦書きの日付（〇月〇日のみ） -->
+                <div class="flex justify-between items-center mb-1">
+                    <h1 class="text-2xl md:text-4xl font-serif font-black tracking-wider text-emerald-100 drop-shadow text-left">
+                        えどがわ給食当番
+                    </h1>
+
+                    <!-- 縦書き日付（〇月〇日のみ） -->
+                    <div id="current-date" class="text-[15px] text-emerald-200/95 font-serif leading-none tracking-normal flex flex-col items-center select-none font-bold pr-0.5">
+                        <!-- JSで動的生成 -->
+                    </div>
+                </div>
+
+                <!-- 黒板下部: お皿累計枚数 ＆ タイマー / 終了ボタン -->
+                <div class="flex justify-between items-center mt-1.5 pt-1 border-t border-white/20">
+                    <div class="flex items-center space-x-1 bg-black/20 px-2 py-0.5 rounded-lg border border-white/10">
+                        <span class="text-xs">🍽️</span>
+                        <span class="text-xs font-bold text-yellow-200">皿: <span id="score-count" class="text-sm font-black text-yellow-300">10</span>枚</span>
+                    </div>
+
+                    <!-- タイマー/終了ボタンコンテナ -->
+                    <div id="timer-display-container" class="flex items-center space-x-1">
+                        <!-- JSで動的生成 -->
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 2. カウンターエリア (動物登場 1体〜最大3体) -->
+        <div class="relative flex-shrink-0 flex flex-col justify-end px-2 mt-1 mb-1 min-h-[130px]">
+            <div class="relative w-full h-36 flex items-end justify-center">
+                <!-- テーブル台座 -->
+                <div class="absolute bottom-0 w-full h-10 bg-amber-200 border-t-4 border-amber-600 rounded-t-lg shadow-md"></div>
+
+                <!-- 動物とカウンター配膳皿 -->
+                <div id="customer-area" class="relative w-full h-full flex justify-around items-end z-10 px-1 pb-0.5">
+                    <!-- JavaScriptで動物たちと配膳台を動的生成 -->
+                </div>
+            </div>
+        </div>
+
+        <!-- 3. 皿置き場 (3行4列グリッド + 右下に吹き出し＆バスケット) -->
+        <div class="wood-shelf mx-2 p-2 rounded-2xl flex flex-col justify-between shadow-2xl relative z-10 border-t-4 border-amber-800 flex-shrink-0">
+            <!-- 皿置き場スロット (3行4列：10スロット＋吹き出し＋バスケット) -->
+            <div id="table-slots" class="grid grid-cols-4 gap-2 min-h-[225px] my-0.5 items-end">
+                <!-- スロット動的描画（末尾に吹き出しとバスケットが含まれます） -->
+            </div>
+        </div>
+
+        <!-- 4. フッター（左：シェフ＆吹き出し / 右：皿の片づけ） -->
+        <div class="game-footer bg-amber-950/90 px-2 sm:px-4 py-1.5 border-t-2 border-amber-900 flex justify-between items-center gap-2 z-20 min-h-[68px] flex-shrink-0 overflow-visible">
+            <div class="flex items-center gap-2 min-w-0 flex-1">
+                <div class="chef-icon text-5xl md:text-6xl filter drop-shadow select-none leading-none flex-shrink-0">🧑‍🍳</div>
+                <div class="chef-speech-bubble px-2 sm:px-3 py-1 text-[10px] sm:text-xs font-bold text-amber-950 min-w-0 max-w-[220px] sm:max-w-[280px]">
+                    <span id="chef-slogan-text">準備OK！</span>
+                </div>
+            </div>
+
+            <!-- 皿の片づけボタン：50皿消費 -->
+            <div class="flex flex-col items-center justify-center flex-shrink-0">
+                <button id="cleanup-btn"
+                        onclick="cleanupAllPlates()"
+                        class="wood-btn w-[58px] h-[44px] rounded-xl font-black text-amber-950 shadow-md transition-transform active:scale-95 flex flex-col items-center justify-center leading-none"
+                        aria-label="皿を片づける">
+                    <span class="text-2xl leading-none">🧹</span>
+                    <span class="text-[8px] font-black mt-0.5">片づけ</span>
+                </button>
+                <span class="text-[8px] sm:text-[9px] font-bold text-amber-100 leading-none mt-1 whitespace-nowrap">50皿消費</span>
+            </div>
+        </div>
+
+        <!-- 皿片づけの横線スイープ演出 -->
+        <div id="cleanup-sweep" class="cleanup-sweep" aria-hidden="true"></div>
+
+        <!-- 5. モーダル ＆ 演出要素 -->
+
+        <!-- トースト通知 -->
+        <div id="toast" class="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 bg-black/85 text-white px-6 py-3 rounded-2xl text-sm font-bold pointer-events-none opacity-0 transition-opacity duration-300 z-50 text-center border-2 border-yellow-400 shadow-2xl">
+            メッセージ
+        </div>
+
+        <!-- カウントダウンオーバーレイ -->
+        <div id="countdown-overlay" class="absolute inset-0 bg-black/75 flex flex-col justify-center items-center z-50 opacity-0 pointer-events-none transition-opacity duration-300 px-3">
+            <div id="countdown-num" class="text-yellow-400 font-black text-6xl animate-bounce text-center drop-shadow-lg whitespace-nowrap">
+                3
+            </div>
+        </div>
+
+        <!-- 起動時スタートモーダル -->
+        <div id="start-modal" class="absolute inset-0 bg-black/80 flex justify-center items-center z-50 p-4">
+            <div class="bg-amber-100 border-4 border-amber-800 rounded-3xl p-5 w-full max-w-sm text-center shadow-2xl flex flex-col justify-between max-h-[88vh] overflow-y-auto">
+                <div>
+                    <h2 class="text-2xl font-black text-amber-950 border-b-2 border-amber-800/30 pb-2 mb-3">
+                        🏫 えどがわ給食当番 🍱
+                    </h2>
+                    
+                    <div class="text-left text-xs text-amber-950 space-y-2 font-medium bg-amber-200/60 p-3 rounded-xl border border-amber-400 mb-3">
+                        <p class="font-bold text-amber-900 text-sm">【あそびかた】</p>
+                        <p>1. 皿置き場の同じ食材皿をタップして移動＆ソート！</p>
+                        <p>2. <b>動物の前の皿置き場には動物が求める食材しか置けません！</b></p>
+                        <p>3. <b>まとめて配膳すると豪華ボーナスお皿を獲得！</b></p>
+                        <p>4. バスケット補充は<b>5皿消費</b>して全置き場に5皿追加！</p>
+                        <p>5. 50皿で新枠解放！動物が最大3体まで増えます！</p>
+                    </div>
+
+                    <!-- 制限時間選択ラジオボタン -->
+                    <div class="bg-amber-200/80 p-3 rounded-xl border border-amber-400 mb-3 text-left">
+                        <p class="font-bold text-amber-900 text-xs mb-1.5">⏱️ 制限時間の選択:</p>
+                        <div class="flex justify-around items-center text-xs font-bold text-amber-950">
+                            <label class="flex items-center space-x-1 cursor-pointer">
+                                <input type="radio" name="time-limit" value="60" checked class="accent-amber-700 w-4 h-4">
+                                <span>60秒</span>
+                            </label>
+                            <label class="flex items-center space-x-1 cursor-pointer">
+                                <input type="radio" name="time-limit" value="120" class="accent-amber-700 w-4 h-4">
+                                <span>120秒</span>
+                            </label>
+                            <label class="flex items-center space-x-1 cursor-pointer">
+                                <input type="radio" name="time-limit" value="0" class="accent-amber-700 w-4 h-4">
+                                <span>無制限</span>
+                            </label>
+                        </div>
+                    </div>
+
+                    <div id="auto-start-countdown" class="text-xs font-bold text-amber-800 mb-3 bg-amber-300/80 py-1.5 px-3 rounded-full border border-amber-500">
+                        ⏳ <span id="start-timer-num">3</span> 秒後に自動でスタートします
+                    </div>
+                </div>
+
+                <div id="start-btn-container" class="flex justify-center items-center gap-3 pt-2">
+                    <!-- JavaScriptでボタンを動的制御 -->
+                </div>
+            </div>
+        </div>
+
+        <!-- 結果発表モーダル -->
+        <div id="result-modal" class="absolute inset-0 bg-black/85 flex justify-center items-center z-50 p-4 opacity-0 pointer-events-none transition-opacity duration-300">
+            <div class="bg-amber-100 border-4 border-amber-800 rounded-3xl p-5 w-full max-w-sm text-center shadow-2xl flex flex-col justify-between max-h-[85vh]">
+                <div>
+                    <h2 class="text-2xl font-black text-amber-950 border-b-2 border-amber-800/30 pb-1 mb-2">
+                        🎉 給食の時間終了！ 🎉
+                    </h2>
+                    <p class="text-xs font-bold text-amber-800 mb-3">【本日の配膳結果】</p>
+
+                    <div id="result-animal-list" class="bg-white/80 border border-amber-300 rounded-xl p-2.5 max-h-40 overflow-y-auto text-xs space-y-1.5 text-left mb-3">
+                        <!-- 動的生成 -->
+                    </div>
+
+                    <div class="bg-amber-200 p-3 rounded-xl border border-amber-400 font-bold text-amber-950 text-sm mb-2">
+                        <div class="flex justify-between items-center">
+                            <span>本日配膳した獲得お皿数:</span>
+                            <span class="text-lg font-black text-amber-900"><span id="result-total-plates">0</span> 枚</span>
+                        </div>
+                    </div>
+
+                    <div id="result-auto-close" class="text-[11px] font-bold text-amber-800">
+                        ⏱️ <span id="close-timer-num">5</span> 秒後に自動で閉じます
+                    </div>
+                </div>
+
+                <button onclick="closeResultModal()" class="wood-btn w-full py-2.5 rounded-2xl font-black text-amber-950 text-base mt-2 shadow-lg">
+                    閉じる
+                </button>
+            </div>
+        </div>
+
+    </div>
+
+    <script>
+        // Web Audio API 安全管理クラス
+        class SoundManager {
+            constructor() {
+                this.ctx = null;
+            }
+
+            init() {
+                try {
+                    if (!this.ctx) {
+                        this.ctx = new (window.AudioContext || window.webkitAudioContext)();
+                    }
+                    if (this.ctx && this.ctx.state === 'suspended') {
+                        this.ctx.resume();
+                    }
+                } catch (e) {}
+            }
+
+            playChime() {
+                try {
+                    this.init();
+                    if (!this.ctx) return;
+                    const notes = [
+                        { f: 523.25, d: 0.7, t: 0.0 }, 
+                        { f: 659.25, d: 0.7, t: 0.6 }, 
+                        { f: 587.33, d: 0.7, t: 1.2 }, 
+                        { f: 392.00, d: 1.2, t: 1.8 }  
+                    ];
+
+                    notes.forEach(n => {
+                        const osc = this.ctx.createOscillator();
+                        const gain = this.ctx.createGain();
+                        osc.type = 'sine';
+                        osc.frequency.setValueAtTime(n.f, this.ctx.currentTime + n.t);
+
+                        gain.gain.setValueAtTime(0, this.ctx.currentTime + n.t);
+                        gain.gain.linearRampToValueAtTime(0.55, this.ctx.currentTime + n.t + 0.05);
+                        gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + n.t + n.d);
+
+                        osc.connect(gain);
+                        gain.connect(this.ctx.destination);
+
+                        osc.start(this.ctx.currentTime + n.t);
+                        osc.stop(this.ctx.currentTime + n.t + n.d);
+                    });
+                } catch (e) {}
+            }
+
+            playClank() {
+                try {
+                    this.init();
+                    if (!this.ctx) return;
+                    const now = this.ctx.currentTime;
+                    for (let i = 0; i < 2; i++) {
+                        const osc = this.ctx.createOscillator();
+                        const gain = this.ctx.createGain();
+                        osc.type = 'triangle';
+                        osc.frequency.setValueAtTime(1200 + Math.random() * 800, now + i * 0.04);
+
+                        gain.gain.setValueAtTime(0.35, now + i * 0.04);
+                        gain.gain.exponentialRampToValueAtTime(0.001, now + i * 0.04 + 0.08);
+
+                        osc.connect(gain);
+                        gain.connect(this.ctx.destination);
+
+                        osc.start(now + i * 0.04);
+                        osc.stop(now + i * 0.04 + 0.09);
+                    }
+                } catch (e) {}
+            }
+
+            playPop() {
+                try {
+                    this.init();
+                    if (!this.ctx) return;
+                    const now = this.ctx.currentTime;
+                    const osc = this.ctx.createOscillator();
+                    const gain = this.ctx.createGain();
+
+                    osc.type = 'sine';
+                    osc.frequency.setValueAtTime(300, now);
+                    osc.frequency.exponentialRampToValueAtTime(800, now + 0.12);
+
+                    gain.gain.setValueAtTime(0.3, now);
+                    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.15);
+
+                    osc.connect(gain);
+                    gain.connect(this.ctx.destination);
+
+                    osc.start(now);
+                    osc.stop(now + 0.15);
+                } catch (e) {}
+            }
+
+            playMunch() {
+                try {
+                    this.init();
+                    if (!this.ctx) return;
+                    const now = this.ctx.currentTime;
+                    for (let i = 0; i < 3; i++) {
+                        const osc = this.ctx.createOscillator();
+                        const gain = this.ctx.createGain();
+                        osc.type = 'sawtooth';
+                        osc.frequency.setValueAtTime(180 + Math.random() * 80, now + i * 0.1);
+
+                        gain.gain.setValueAtTime(0.25, now + i * 0.1);
+                        gain.gain.exponentialRampToValueAtTime(0.001, now + i * 0.1 + 0.08);
+
+                        osc.connect(gain);
+                        gain.connect(this.ctx.destination);
+
+                        osc.start(now + i * 0.1);
+                        osc.stop(now + i * 0.1 + 0.09);
+                    }
+                } catch (e) {}
+            }
+        }
+
+        const sound = new SoundManager();
+
+        // 食材データ
+        const FOOD_TYPES = [
+            { id: 'carrot', emoji: '🥕', name: 'ニンジン', plateBg: 'bg-orange-400', plateBorder: 'border-orange-600' },
+            { id: 'broccoli', emoji: '🥦', name: 'ブロッコリー', plateBg: 'bg-emerald-400', plateBorder: 'border-emerald-600' },
+            { id: 'apple', emoji: '🍎', name: 'リンゴ', plateBg: 'bg-red-400', plateBorder: 'border-red-600' },
+            { id: 'banana', emoji: '🍌', name: 'バナナ', plateBg: 'bg-yellow-300', plateBorder: 'border-yellow-500' },
+            { id: 'corn', emoji: '🌽', name: 'トウモロコシ', plateBg: 'bg-yellow-400', plateBorder: 'border-yellow-600' },
+            { id: 'grape', emoji: '🍇', name: 'ブドウ', plateBg: 'bg-purple-400', plateBorder: 'border-purple-600' },
+            { id: 'bread', emoji: '🍞', name: 'コッペパン', plateBg: 'bg-amber-300', plateBorder: 'border-amber-600' },
+            { id: 'milk', emoji: '🥛', name: '牛乳', plateBg: 'bg-blue-200', plateBorder: 'border-blue-400' }
+        ];
+
+        function getFoodInfo(foodId) {
+            return FOOD_TYPES.find(f => f.id === foodId) || FOOD_TYPES[0];
+        }
+
+        const ALL_ANIMALS = ['🐨', '🐭', '🦊', '🐰', '🐷', '🐮', '🐯', '🐼', '🐱', '🐺'];
+
+        // 学校のスローガンフレーズ
+        const CHEF_SLOGANS = [
+            "好き嫌いしないで残さず食べよう！",
+            "しっかり噛んで美味しくいただこう！",
+            "みんなで楽しく給食の時間♪",
+            "栄養満点！元気に完食を目指そう！",
+            "片付けまでしっかり頑張ろうね！",
+            "残さず食べたらみんなニッコリ！"
+        ];
+
+        // --- ゲーム状態変数 ---
+        let totalServedCount = 10;   
+        let unlockedSlotCount = 3;  
+        let availableFoodCount = 3; 
+        let clearedAnimalStages = 0; 
+
+        let selectedTimeLimit = 60; 
+        let gameTimer = 60;       
+        let timerInterval = null;
+        let isGameActive = false;
+
+        let autoStartTimer = null;
+        let autoCloseTimer = null;
+
+        let remainingAnimals = []; 
+        let servedAnimalRecord = {}; 
+
+        let selectedSlot = null;
+        let customers = []; 
+        let tableSlots = [];
+
+        let sloganIndex = 0;
+        let sloganInterval = null;
+
+        let basketSpeechState = "default"; 
+        let basketSpeechTextCustom = "";
+
+        window.onload = function() {
+            updateCurrentDateDisplay();
+            setupStartModal();
+        };
+
+        // 縦書きの日付表示（1文字ずつ改行：「〇月〇日」のみ）
+        function updateCurrentDateDisplay() {
+            const now = new Date();
+            const month = now.getMonth() + 1;
+            const date = now.getDate();
+
+            const dateEl = document.getElementById('current-date');
+            
+            if (dateEl) {
+                let html = "";
+                const mStr = String(month);
+                for (let c of mStr) html += `<span>${c}</span>`;
+                html += `<span>月</span>`;
+                const dStr = String(date);
+                for (let c of dStr) html += `<span>${c}</span>`;
+                html += `<span>日</span>`;
+                dateEl.innerHTML = html;
+            }
+        }
+
+        function getSelectedTimeLimit() {
+            const radios = document.getElementsByName('time-limit');
+            for (let r of radios) {
+                if (r.checked) return parseInt(r.value, 10);
+            }
+            return 60;
+        }
+
+        function setupStartModal() {
+            const hasPlayed = localStorage.getItem('edogawa_has_played');
+            const btnContainer = document.getElementById('start-btn-container');
+
+            if (!btnContainer) return;
+            btnContainer.innerHTML = '';
+
+            if (!hasPlayed) {
+                btnContainer.innerHTML = `
+                    <button onclick="startGame('new')" class="wood-btn w-full py-2.5 rounded-2xl font-black text-amber-950 text-base shadow-lg">
+                        はじめる
+                    </button>
+                `;
+                startModalCountdown('new');
+            } else {
+                btnContainer.innerHTML = `
+                    <button onclick="startGame('continue')" class="wood-btn flex-1 py-2.5 rounded-2xl font-black text-amber-950 text-sm shadow-lg">
+                        続きから
+                    </button>
+                    <button onclick="startGame('new')" class="bg-amber-300 border-2 border-amber-600 text-amber-950 flex-1 py-2.5 rounded-2xl font-bold text-sm shadow">
+                        最初から
+                    </button>
+                `;
+                startModalCountdown('continue');
+            }
+        }
+
+        function startModalCountdown(actionType) {
+            let leftSec = 3;
+            const timerEl = document.getElementById('start-timer-num');
+            if (timerEl) timerEl.innerText = leftSec;
+
+            if (autoStartTimer) clearInterval(autoStartTimer);
+
+            autoStartTimer = setInterval(() => {
+                leftSec--;
+                if (timerEl) timerEl.innerText = leftSec;
+                if (leftSec <= 0) {
+                    clearInterval(autoStartTimer);
+                    startGame(actionType);
+                }
+            }, 1000);
+        }
+
+        function startGame(mode) {
+            if (autoStartTimer) clearInterval(autoStartTimer);
+            const modal = document.getElementById('start-modal');
+            if (modal) modal.classList.add('hidden');
+
+            selectedTimeLimit = getSelectedTimeLimit();
+
+            if (mode === 'new') {
+                totalServedCount = 10;
+                unlockedSlotCount = 3; 
+                availableFoodCount = 3;
+                clearedAnimalStages = 0;
+                servedAnimalRecord = {};
+                remainingAnimals = [...ALL_ANIMALS].sort(() => Math.random() - 0.5);
+                gameTimer = selectedTimeLimit;
+
+                initBoard();
+            } else {
+                const loaded = loadGameState();
+                if (!loaded) {
+                    gameTimer = selectedTimeLimit;
+                    initBoard();
+                } else {
+                    selectedTimeLimit = getSelectedTimeLimit();
+                    if (selectedTimeLimit === 0) {
+                        gameTimer = 0;
+                    }
+                }
+            }
+
+            try {
+                localStorage.setItem('edogawa_has_played', 'true');
+            } catch(e) {}
+
+            runStartCountdown();
+        }
+
+        function initBoard() {
+            tableSlots = [];
+            for (let i = 0; i < 10; i++) {
+                if (i < unlockedSlotCount) {
+                    tableSlots.push(generateBalancedMixedStack(5));
+                } else {
+                    tableSlots.push(null);
+                }
+            }
+            updateCustomersCount();
+            render();
+            saveGameState();
+        }
+
+        function getTargetCustomerCount() {
+            if (clearedAnimalStages >= 2) return 3;
+            if (clearedAnimalStages >= 1) return 2;
+            return 1;
+        }
+
+        function updateCustomersCount() {
+            const targetCount = getTargetCustomerCount();
+
+            while (customers.length < targetCount) {
+                if (remainingAnimals.length === 0) {
+                    remainingAnimals = [...ALL_ANIMALS].sort(() => Math.random() - 0.5);
+                }
+                const animal = remainingAnimals.pop();
+                const food = chooseRequestedFood();
+
+                customers.push({
+                    animal: animal,
+                    requestFood: food,
+                    counterStack: []
+                });
+
+                ensureFoodExistsOnTable(food);
+            }
+
+            while (customers.length > targetCount) {
+                customers.pop();
+            }
+        }
+
+        function runStartCountdown() {
+            const overlay = document.getElementById('countdown-overlay');
+            const numEl = document.getElementById('countdown-num');
+            if (overlay) overlay.classList.remove('opacity-0', 'pointer-events-none');
+
+            sound.playChime();
+
+            let count = 3;
+            if (numEl) {
+                numEl.className = "text-yellow-400 font-black text-6xl animate-bounce text-center drop-shadow-lg whitespace-nowrap";
+                numEl.innerText = count;
+            }
+
+            const cdInterval = setInterval(() => {
+                count--;
+                if (count > 0) {
+                    if (numEl) {
+                        numEl.className = "text-yellow-400 font-black text-6xl animate-bounce text-center drop-shadow-lg whitespace-nowrap";
+                        numEl.innerText = count;
+                    }
+                } else if (count === 0) {
+                    if (numEl) {
+                        numEl.className = "text-yellow-400 font-black text-2xl sm:text-3xl md:text-4xl animate-bounce text-center drop-shadow-lg whitespace-nowrap px-2";
+                        numEl.innerText = "給食の時間です！";
+                    }
+                } else {
+                    clearInterval(cdInterval);
+                    if (overlay) overlay.classList.add('opacity-0', 'pointer-events-none');
+                    startTimer();
+                    startChefSloganLoop();
+                }
+            }, 1000);
+        }
+
+        function startChefSloganLoop() {
+            const sloganEl = document.getElementById('chef-slogan-text');
+            if (sloganEl) sloganEl.innerText = "給食の時間だよ！";
+
+            if (sloganInterval) clearInterval(sloganInterval);
+
+            setTimeout(() => {
+                if (sloganEl) sloganEl.innerText = "好き嫌いしないで残さず食べよう！";
+                sloganInterval = setInterval(() => {
+                    sloganIndex = (sloganIndex + 1) % CHEF_SLOGANS.length;
+                    if (sloganEl) sloganEl.innerText = CHEF_SLOGANS[sloganIndex];
+                }, 4500);
+            }, 3000);
+        }
+
+        function startTimer() {
+            isGameActive = true;
+            
+            if (timerInterval) clearInterval(timerInterval);
+
+            setupTimerDisplay();
+
+            if (selectedTimeLimit > 0) {
+                if (!gameTimer || gameTimer <= 0) {
+                    gameTimer = selectedTimeLimit;
+                }
+
+                const timerEl = document.getElementById('game-timer');
+                if (timerEl) timerEl.innerText = gameTimer;
+
+                timerInterval = setInterval(() => {
+                    gameTimer--;
+                    const timerEl = document.getElementById('game-timer');
+                    if (timerEl) timerEl.innerText = gameTimer;
+
+                    saveGameState();
+
+                    if (gameTimer <= 0) {
+                        clearInterval(timerInterval);
+                        endGame();
+                    }
+                }, 1000);
+            }
+        }
+
+        function setupTimerDisplay() {
+            const container = document.getElementById('timer-display-container');
+            if (!container) return;
+
+            if (selectedTimeLimit === 0) {
+                container.innerHTML = `
+                    <button onclick="endGame()" class="wood-btn px-3 py-1 rounded-full text-xs font-black text-amber-950 border-2 border-amber-800 shadow-md transition-transform active:scale-95">
+                        給食当番を終了する
+                    </button>
+                `;
+            } else {
+                container.innerHTML = `
+                    <div id="timer-box" class="bg-amber-950/90 px-3 py-1 rounded-full text-white text-xs font-black border-2 border-yellow-400 flex items-center space-x-1 shadow-md">
+                        <span>⏳</span>
+                        <span id="game-timer" class="text-yellow-300 font-mono text-sm">${selectedTimeLimit}</span>
+                        <span>秒</span>
+                    </div>
+                `;
+            }
+        }
+
+        function endGame() {
+            isGameActive = false;
+            if (timerInterval) clearInterval(timerInterval);
+            if (sloganInterval) clearInterval(sloganInterval);
+            sound.playChime();
+            showResultModal();
+        }
+
+        function showResultModal() {
+            const modal = document.getElementById('result-modal');
+            const listEl = document.getElementById('result-animal-list');
+            if (!modal || !listEl) return;
+            
+            listEl.innerHTML = '';
+
+            let grandTotalPlates = 0;
+
+            Object.keys(servedAnimalRecord).forEach(animal => {
+                const count = servedAnimalRecord[animal];
+                grandTotalPlates += count;
+                const row = document.createElement('div');
+                row.className = 'flex justify-between items-center bg-white p-1.5 rounded-lg border border-amber-200';
+                row.innerHTML = `
+                    <span class="text-base">${animal}</span>
+                    <span class="font-black text-amber-900">${count} 皿提供！</span>
+                `;
+                listEl.appendChild(row);
+            });
+
+            if (Object.keys(servedAnimalRecord).length === 0) {
+                listEl.innerHTML = `<div class="text-center text-gray-500 py-2">動物に給食を配れませんでした</div>`;
+            }
+
+            document.getElementById('result-total-plates').innerText = grandTotalPlates;
+
+            modal.classList.remove('opacity-0', 'pointer-events-none');
+
+            let closeLeft = 5;
+            const closeTimerEl = document.getElementById('close-timer-num');
+            if (closeTimerEl) closeTimerEl.innerText = closeLeft;
+            
+            if (autoCloseTimer) clearInterval(autoCloseTimer);
+
+            autoCloseTimer = setInterval(() => {
+                closeLeft--;
+                if (closeTimerEl) closeTimerEl.innerText = closeLeft;
+                if (closeLeft <= 0) {
+                    clearInterval(autoCloseTimer);
+                    closeResultModal();
+                }
+            }, 1000);
+        }
+
+        function closeResultModal() {
+            if (autoCloseTimer) clearInterval(autoCloseTimer);
+            const modal = document.getElementById('result-modal');
+            if (modal) modal.classList.add('opacity-0', 'pointer-events-none');
+            
+            const startModal = document.getElementById('start-modal');
+            if (startModal) startModal.classList.remove('hidden');
+            setupStartModal();
+        }
+
+        function replaceCustomerAtIndex(idx) {
+            if (remainingAnimals.length === 0) {
+                remainingAnimals = [...ALL_ANIMALS].sort(() => Math.random() - 0.5);
+            }
+
+            const animal = remainingAnimals.pop();
+            const food = chooseRequestedFood();
+
+            customers[idx] = {
+                animal: animal,
+                requestFood: food,
+                counterStack: []
+            };
+
+            ensureFoodExistsOnTable(food);
+            sound.playPop();
+        }
+
+        // 皿置き場に溜まっている食材を優先して動物のリクエストを決定する。
+        // 同数の場合だけランダムにして、特定食材への固定化を避ける。
+        function chooseRequestedFood() {
+            const activeFoods = FOOD_TYPES.slice(0, availableFoodCount);
+            if (activeFoods.length === 0) return FOOD_TYPES[0];
+
+            const counts = {};
+            activeFoods.forEach(food => counts[food.id] = 0);
+
+            tableSlots.forEach(stack => {
+                if (!stack) return;
+                stack.forEach(item => {
+                    if (counts[item.id] !== undefined) counts[item.id]++;
+                });
+            });
+
+            const maxCount = Math.max(...activeFoods.map(food => counts[food.id]));
+            const candidates = activeFoods.filter(food => counts[food.id] === maxCount);
+
+            return candidates[Math.floor(Math.random() * candidates.length)];
+        }
+
+        function ensureFoodExistsOnTable(targetFood) {
+            let exists = false;
+            tableSlots.forEach(s => {
+                if (s && s.some(item => item.id === targetFood.id)) {
+                    exists = true;
+                }
+            });
+
+            if (!exists && unlockedSlotCount > 0) {
+                const targetIdx = Math.floor(Math.random() * unlockedSlotCount);
+                if (!tableSlots[targetIdx]) tableSlots[targetIdx] = [];
+                for (let i = 0; i < 5; i++) {
+                    tableSlots[targetIdx].push(createPlateItem(targetFood.id));
+                }
+            }
+        }
+
+        function createPlateItem(foodId) {
+            const food = getFoodInfo(foodId);
+            return {
+                id: food.id,
+                emoji: food.emoji,
+                name: food.name,
+                plateBg: food.plateBg,
+                plateBorder: food.plateBorder
+            };
+        }
+
+        function generateBalancedMixedStack(stackSize) {
+            const currentFoods = FOOD_TYPES.slice(0, availableFoodCount);
+            let stack = [];
+            for (let i = 0; i < stackSize; i++) {
+                const randomFood = currentFoods[i % currentFoods.length];
+                stack.push(createPlateItem(randomFood.id));
+            }
+            return stack.sort(() => Math.random() - 0.5);
+        }
+
+        function getTopContinuousCount(stack) {
+            if (!stack || stack.length === 0) return 0;
+            const topFoodId = stack[stack.length - 1].id;
+            let count = 0;
+            for (let i = stack.length - 1; i >= 0; i--) {
+                if (stack[i].id === topFoodId) {
+                    count++;
+                } else {
+                    break;
+                }
+            }
+            return count;
+        }
+
+        // --- タップ操作と皿移動 ---
+        function handleSlotClick(type, index) {
+            if (!isGameActive || isCleaningUp) return;
+
+            if (type === 'table' && index >= unlockedSlotCount) {
+                if (totalServedCount >= 50 && index === unlockedSlotCount) {
+                    unlockedSlotCount++;
+                    tableSlots[index] = generateBalancedMixedStack(5);
+                    totalServedCount -= 50; 
+
+                    sound.playPop();
+                    showToast("🎉 50皿消費して皿置き場を1つ解放しました！");
+                    updateCustomersCount();
+                    render();
+                    saveGameState();
+                } else {
+                    showToast("お皿が50枚溜まるとタップで枠を解放できます！");
+                }
+                return;
+            }
+
+            const getStack = (slotInfo) => {
+                if (!slotInfo) return null;
+                return slotInfo.type === 'counter' ? customers[slotInfo.index].counterStack : tableSlots[slotInfo.index];
+            };
+
+            const setStack = (slotInfo, newStack) => {
+                if (slotInfo.type === 'counter') {
+                    customers[slotInfo.index].counterStack = newStack;
+                } else {
+                    tableSlots[slotInfo.index] = newStack;
+                }
+            };
+
+            if (selectedSlot === null) {
+                const stack = getStack({ type, index });
+                if (stack && stack.length > 0) {
+                    const topCount = getTopContinuousCount(stack);
+                    selectedSlot = { type, index, count: topCount };
+                    sound.playClank();
+                }
+            } else if (selectedSlot.type === type && selectedSlot.index === index) {
+                selectedSlot = null;
+            } else {
+                const sourceStack = getStack(selectedSlot);
+                const destStack = getStack({ type, index }) || [];
+
+                if (!sourceStack || sourceStack.length === 0) {
+                    selectedSlot = null;
+                    render();
+                    return;
+                }
+
+                const topFood = sourceStack[sourceStack.length - 1];
+
+                if (type === 'counter') {
+                    const targetCustomer = customers[index];
+                    if (topFood.id !== targetCustomer.requestFood.id) {
+                        showToast(`⚠️ ${targetCustomer.animal} は「${targetCustomer.requestFood.name}」しか置けません！`);
+                        selectedSlot = null;
+                        render();
+                        return;
+                    }
+                }
+
+                const isSameFood = destStack.length > 0 && destStack[destStack.length - 1].id === topFood.id;
+                const canPlace = destStack.length === 0 || isSameFood;
+
+                if (canPlace) {
+                    const moveCount = selectedSlot.count;
+                    let movedPlates = [];
+
+                    for (let i = 0; i < moveCount; i++) {
+                        movedPlates.push(sourceStack.pop());
+                    }
+
+                    const newDestStack = [...destStack, ...movedPlates];
+                    setStack({ type, index }, newDestStack);
+
+                    selectedSlot = null;
+                    sound.playClank();
+
+                    checkCompletionAndEmotion(type, index);
+                } else {
+                    const targetStack = getStack({ type, index });
+                    if (targetStack && targetStack.length > 0) {
+                        const topCount = getTopContinuousCount(targetStack);
+                        selectedSlot = { type, index, count: topCount };
+                        sound.playClank();
+                    } else {
+                        selectedSlot = null;
+                    }
+                }
+            }
+
+            render();
+            saveGameState();
+        }
+
+        // バスケット吹き出しアニメーション（新食材入荷時切り替え）
+        function triggerNewFoodInflowSpeech(foodEmoji) {
+            basketSpeechState = "new_food";
+            basketSpeechTextCustom = `「${foodEmoji}」が<br>入荷しました`;
+            render();
+
+            setTimeout(() => {
+                basketSpeechState = "default";
+                render();
+            }, 3000);
+        }
+
+        function checkCompletionAndEmotion(type, index) {
+            let targetStack = type === 'counter' ? customers[index].counterStack : tableSlots[index];
+
+            if (targetStack && targetStack.length >= 10) {
+                const food = targetStack[0];
+
+                if (type === 'counter') {
+                    if (food.id === customers[index].requestFood.id) {
+                        triggerUnlockSuccess(index, targetStack.length);
+                    }
+                } else {
+                    customers.forEach((cust, cIdx) => {
+                        if (food.id === cust.requestFood.id && cust.counterStack.length === 0) {
+                            const count = targetStack.length;
+                            cust.counterStack = tableSlots[index];
+                            tableSlots[index] = [];
+                            triggerUnlockSuccess(cIdx, count);
+                        }
+                    });
+                }
+            }
+        }
+
+        function calculateMultiplierBonus(rawAmount) {
+            let multiplier = 1.0;
+            if (rawAmount >= 30) multiplier = 3.0;
+            else if (rawAmount >= 25) multiplier = 2.5;
+            else if (rawAmount >= 20) multiplier = 2.0;
+            else if (rawAmount >= 15) multiplier = 1.5;
+
+            return {
+                bonusAmount: Math.floor(rawAmount * multiplier),
+                multiplier: multiplier
+            };
+        }
+
+        function getAnimalEmotionEmoji(plateCount) {
+            if (plateCount >= 18) return '😍';
+            if (plateCount >= 16) return '😆';
+            if (plateCount >= 14) return '😁';
+            if (plateCount >= 12) return '😄';
+            if (plateCount >= 10) return '😀';
+            return null;
+        }
+
+        function triggerUnlockSuccess(customerIndex, rawServedAmount) {
+            sound.playMunch();
+
+            const { bonusAmount, multiplier } = calculateMultiplierBonus(rawServedAmount);
+
+            const oldTotal = totalServedCount;
+            totalServedCount += bonusAmount;
+
+            const oldFoodMilestone = Math.floor(oldTotal / 20);
+            const newFoodMilestone = Math.floor(totalServedCount / 20);
+
+            if (newFoodMilestone > oldFoodMilestone && availableFoodCount < FOOD_TYPES.length) {
+                const newFood = FOOD_TYPES[availableFoodCount];
+                availableFoodCount++;
+                triggerNewFoodInflowSpeech(newFood.emoji);
+            }
+
+            clearedAnimalStages++;
+
+            if (multiplier > 1.0) {
+                showToast(`🔥 ${multiplier}倍ボーナス！ ${rawServedAmount}皿 ➔ ${bonusAmount}皿獲得！`);
+            }
+
+            const animal = customers[customerIndex].animal;
+            servedAnimalRecord[animal] = (servedAnimalRecord[animal] || 0) + bonusAmount;
+
+            updateCustomersCount();
+            render();
+
+            setTimeout(() => {
+                replaceCustomerAtIndex(customerIndex);
+                render();
+                saveGameState();
+            }, 1000);
+        }
+
+        // バスケット補充（お皿5枚消費）
+        function dispenseBasket() {
+            if (!isGameActive) return;
+
+            if (totalServedCount < 5) {
+                showToast("お皿が足りません！（補充には5皿消費します）");
+                return;
+            }
+
+            totalServedCount -= 5; 
+
+            for (let i = 0; i < unlockedSlotCount; i++) {
+                if (!tableSlots[i]) tableSlots[i] = [];
+                const newFive = generateBalancedMixedStack(5);
+                tableSlots[i] = [...tableSlots[i], ...newFive];
+            }
+
+            selectedSlot = null;
+            sound.playClank();
+            showToast("🧺 5皿消費して、全皿置き場に5皿追加しました！");
+            render();
+            saveGameState();
+        }
+
+        // 皿置き場＋動物前の皿を50皿消費して一掃する。
+        // 右→左へ縦線を走らせ、その線を通過した皿から消える演出を行う。
+        let isCleaningUp = false;
+
+        function cleanupAllPlates() {
+            if (!isGameActive || isCleaningUp) return;
+
+            if (totalServedCount < 50) {
+                showToast("🧹 片づけには50皿が必要です！");
+                return;
+            }
+
+            isCleaningUp = true;
+            selectedSlot = null;
+            totalServedCount -= 50;
+
+            const app = document.getElementById('app');
+            const sweep = document.getElementById('cleanup-sweep');
+
+            sound.playClank();
+
+            // 現在表示されているすべての皿を取得し、画面上の位置から
+            // 右側ほど早く消えるように遅延時間を設定する。
+            const plates = app ? Array.from(app.querySelectorAll('.real-plate')) : [];
+            const appRect = app ? app.getBoundingClientRect() : { left: 0, width: 1 };
+
+            plates.forEach(plate => {
+                const rect = plate.getBoundingClientRect();
+                const centerX = rect.left + rect.width / 2;
+                const fromRight = Math.max(0, Math.min(1, (appRect.right - centerX) / Math.max(1, appRect.width)));
+                const delay = Math.round(90 + fromRight * 820);
+                plate.style.setProperty('--cleanup-delay', `${delay}ms`);
+                plate.classList.add('cleanup-target');
+            });
+
+            if (sweep) sweep.classList.add('active');
+
+            setTimeout(() => {
+                tableSlots = tableSlots.map((stack, i) => (i < unlockedSlotCount ? [] : null));
+                customers.forEach(cust => cust.counterStack = []);
+                selectedSlot = null;
+                isCleaningUp = false;
+
+                if (sweep) sweep.classList.remove('active');
+
+                sound.playPop();
+                showToast("🧹 50皿消費！皿をすべて片づけました！");
+                render();
+                saveGameState();
+            }, 1325);
+        }
+
+        function saveGameState() {
+            try {
+                const state = {
+                    totalServedCount,
+                    unlockedSlotCount,
+                    availableFoodCount,
+                    clearedAnimalStages,
+                    selectedTimeLimit,
+                    gameTimer,
+                    servedAnimalRecord,
+                    tableSlots: tableSlots.map(stack => stack ? stack.map(item => item.id) : null),
+                    customers: customers.map(c => ({
+                        animal: c.animal,
+                        requestFoodId: c.requestFood.id,
+                        counterStack: c.counterStack.map(item => item.id)
+                    }))
+                };
+                localStorage.setItem('edogawa_game_state', JSON.stringify(state));
+            } catch(e) {}
+        }
+
+        function loadGameState() {
+            try {
+                const raw = localStorage.getItem('edogawa_game_state');
+                if (!raw) return false;
+                const state = JSON.parse(raw);
+
+                totalServedCount = state.totalServedCount || 0;
+                unlockedSlotCount = state.unlockedSlotCount || 3;
+                availableFoodCount = state.availableFoodCount || 3;
+                clearedAnimalStages = state.clearedAnimalStages || 0;
+                selectedTimeLimit = state.selectedTimeLimit ?? 60;
+                gameTimer = state.gameTimer ?? selectedTimeLimit;
+                servedAnimalRecord = state.servedAnimalRecord || {};
+
+                if (state.tableSlots && Array.isArray(state.tableSlots)) {
+                    tableSlots = state.tableSlots.map(stack => {
+                        if (!stack) return null;
+                        return stack.map(foodId => createPlateItem(foodId));
+                    });
+                }
+
+                if (state.customers && Array.isArray(state.customers)) {
+                    customers = state.customers.map(c => ({
+                        animal: c.animal,
+                        requestFood: getFoodInfo(c.requestFoodId),
+                        counterStack: c.counterStack.map(foodId => createPlateItem(foodId))
+                    }));
+                }
+
+                render();
+                return true;
+            } catch(e) {
+                return false;
+            }
+        }
+
+        function showToast(msg) {
+            const toast = document.getElementById('toast');
+            if (!toast) return;
+            toast.innerText = msg;
+            toast.classList.remove('opacity-0');
+            toast.classList.add('opacity-100');
+            setTimeout(() => {
+                toast.classList.remove('opacity-100');
+                toast.classList.add('opacity-0');
+            }, 2000);
+        }
+
+        // UI描画
+        function render() {
+            const scoreEl = document.getElementById('score-count');
+            if (scoreEl) scoreEl.innerText = totalServedCount;
+
+            const cleanupBtn = document.getElementById('cleanup-btn');
+            if (cleanupBtn) {
+                cleanupBtn.disabled = totalServedCount < 50 || isCleaningUp;
+                cleanupBtn.classList.toggle('cleanup-btn-disabled', cleanupBtn.disabled);
+                cleanupBtn.title = cleanupBtn.disabled
+                    ? '50皿必要です'
+                    : '50皿消費して、すべての皿を片づけます';
+            }
+
+            const progEl = document.getElementById('unlock-progress');
+            if (progEl) progEl.innerText = `${totalServedCount} / 50`;
+
+            // 1. カウンター動物エリアの描画 (1〜3体: 下の4つの皿置き場の「間」25%, 50%, 75% の位置に配置)
+            const counterArea = document.getElementById('customer-area');
+            if (counterArea) {
+                counterArea.innerHTML = '';
+
+                // 下の4列の皿置き場の隙間位置 (25%, 50%, 75%)
+                let gapPositions = [50];
+                if (customers.length === 2) {
+                    gapPositions = [25, 75];
+                } else if (customers.length === 3) {
+                    gapPositions = [25, 50, 75];
+                }
+
+                customers.forEach((cust, cIdx) => {
+                    const isSelected = selectedSlot && selectedSlot.type === 'counter' && selectedSlot.index === cIdx;
+                    const cStack = cust.counterStack;
+                    const reqFood = cust.requestFood;
+                    const liftedCount = isSelected ? selectedSlot.count : 0;
+
+                    const emotionEmoji = getAnimalEmotionEmoji(cStack.length);
+                    const posPct = gapPositions[cIdx] || 50;
+
+                    const custEl = document.createElement('div');
+                    custEl.className = 'absolute bottom-0 transform -translate-x-1/2 flex flex-col items-center justify-end h-full z-10 w-24';
+                    custEl.style.left = `${posPct}%`;
+
+                    custEl.innerHTML = `
+                        <div class="speech-bubble px-1.5 py-0.5 mb-0.5 flex items-center space-x-0.5 border-2 border-amber-800">
+                            <span class="text-base">${reqFood.emoji}</span>
+                            ${emotionEmoji ? `
+                                <span class="text-sm animate-bounce ml-0.5">${emotionEmoji}</span>
+                            ` : ''}
+                            <span class="text-[10px] font-black text-amber-900 bg-amber-100 px-1 py-0.2 rounded-full border border-amber-300">
+                                ${cStack.length}/20
+                            </span>
+                        </div>
+
+                        <div class="text-3xl md:text-4xl filter drop-shadow-md select-none animal-enter mb-0.5">
+                            ${cust.animal}
+                        </div>
+
+                        <div id="counter-slot-${cIdx}" class="slot-base relative w-13 h-10 flex items-center justify-center cursor-pointer transition-all">
+                            ${cStack.length > 0 ? renderPlateStackHTML(cStack, liftedCount) : `
+                                <span class="text-[9px] font-extrabold text-amber-900/60">${reqFood.emoji}のみ</span>
+                            `}
+                        </div>
+                    `;
+
+                    custEl.querySelector(`#counter-slot-${cIdx}`).onclick = () => handleSlotClick('counter', cIdx);
+                    counterArea.appendChild(custEl);
+                });
+            }
+
+            // 2. 下部皿置き場（3行4列グリッド + 右下に吹き出し＆バスケット）
+            const tableGrid = document.getElementById('table-slots');
+            if (tableGrid) {
+                tableGrid.innerHTML = '';
+
+                // スロット 0〜9 の10個を描画
+                for (let i = 0; i < 10; i++) {
+                    const slotEl = document.createElement('div');
+                    const isLocked = i >= unlockedSlotCount;
+                    const isSelected = selectedSlot && selectedSlot.type === 'table' && selectedSlot.index === i;
+                    const stack = tableSlots[i];
+                    const liftedCount = isSelected ? selectedSlot.count : 0;
+
+                    const canUnlockThis = isLocked && (i === unlockedSlotCount) && (totalServedCount >= 50);
+
+                    if (isLocked) {
+                        slotEl.className = `slot-base rounded-2xl h-[70px] flex flex-col items-center justify-center text-amber-900/80 ${canUnlockThis ? 'ready-unlock cursor-pointer' : 'bg-black/10'}`;
+                        slotEl.innerHTML = canUnlockThis ? `
+                            <span class="text-base animate-bounce">🔓</span>
+                            <span class="text-[9px] font-black text-amber-900">タップで解放！</span>
+                        ` : `
+                            <span class="text-sm">🔒</span>
+                            <span class="text-[9px] font-bold">50皿で解放</span>
+                        `;
+                    } else {
+                        slotEl.className = 'slot-base relative rounded-2xl h-[70px] flex flex-col items-center justify-center cursor-pointer transition-all';
+
+                        if (stack && stack.length > 0) {
+                            slotEl.innerHTML = renderPlateStackHTML(stack, liftedCount);
+                        } else {
+                            slotEl.innerHTML = `<span class="text-xs text-amber-900/40 font-bold">空</span>`;
+                        }
+                    }
+
+                    slotEl.onclick = () => handleSlotClick('table', i);
+                    tableGrid.appendChild(slotEl);
+                }
+
+                // グリッドの 11枠目（3行目Column 3）: 吹き出し（右下の皿置き場枠内）
+                const speechCell = document.createElement('div');
+                speechCell.className = 'col-span-1 h-[70px] flex items-center justify-center z-20';
+
+                const speechTextHtml = basketSpeechState === "new_food" 
+                    ? basketSpeechTextCustom 
+                    : `食材提供<br>（５皿消費）`;
+
+                speechCell.innerHTML = `
+                    <div id="basket-speech" class="basket-speech-bubble px-1 py-0.5 text-[9px] font-black leading-tight text-center w-full">
+                        ${speechTextHtml}
+                    </div>
+                `;
+                tableGrid.appendChild(speechCell);
+
+                // グリッドの 12枠目（3行目Column 4）: バスケット（🧺）
+                const basketCell = document.createElement('div');
+                basketCell.className = 'col-span-1 h-[70px] flex items-center justify-center z-20';
+                basketCell.innerHTML = `
+                    <button id="dispense-btn" onclick="dispenseBasket()" class="p-0.5 rounded-2xl transition-transform active:scale-95 flex items-center justify-center">
+                        <span class="text-4xl md:text-5xl filter drop-shadow-md">🧺</span>
+                    </button>
+                `;
+                tableGrid.appendChild(basketCell);
+            }
+        }
+
+        // 皿スタックのリアルなHTML描画
+        function renderPlateStackHTML(stack, liftedCount = 0) {
+            const total = stack.length;
+            const remainingCount = total - liftedCount;
+
+            const stepY = 3.5; 
+
+            let htmlStr = `<div class="relative w-14 h-14 flex items-center justify-center">`;
+
+            for (let idx = 0; idx < total; idx++) {
+                const item = stack[idx];
+                const isLifted = idx >= remainingCount;
+                const bottomPos = isLifted ? (idx * stepY + 30) : (idx * stepY);
+
+                const isTopOfRemaining = (idx === remainingCount - 1 && isLifted);
+                const isTopOfLifted = (idx === total - 1);
+                const showEmoji = isTopOfRemaining || isTopOfLifted;
+
+                const foodInfo = getFoodInfo(item.id);
+
+                htmlStr += `
+                    <div class="real-plate w-12 h-9 ${foodInfo.plateBg} border-2 ${foodInfo.plateBorder} flex items-center justify-center ${isLifted ? 'lifted-plate-group' : ''}" 
+                         style="bottom: ${bottomPos}px;">
+                        <div class="real-plate-inner">
+                            ${showEmoji ? `<span class="text-lg drop-shadow">${foodInfo.emoji}</span>` : ''}
+                        </div>
+                    </div>
+                `;
+            }
+
+            htmlStr += `
+                <div class="absolute -bottom-1 -right-1 bg-amber-900 text-yellow-300 text-[10px] font-black px-1.5 py-0.2 rounded-full border border-amber-500 shadow z-20">
+                    ${total}
+                </div>
+            </div>`;
+
+            return htmlStr;
+        }
+    </script>
+</body>
+</html>
