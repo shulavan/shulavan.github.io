@@ -867,6 +867,7 @@
         }
 
         function startGame(mode) {
+            completionInProgress.clear();
             if (autoStartTimer) clearInterval(autoStartTimer);
             const modal = document.getElementById('start-modal');
             if (modal) modal.classList.add('hidden');
@@ -1271,11 +1272,13 @@
                 const canPlace = destStack.length === 0 || isSameFood;
 
                 if (canPlace) {
-                    const moveCount = selectedSlot.count;
+                    // 操作中に別の完了判定が走らないよう、移動数を実在する皿数に制限する
+                    const moveCount = Math.min(selectedSlot.count, sourceStack.length);
                     let movedPlates = [];
 
                     for (let i = 0; i < moveCount; i++) {
-                        movedPlates.push(sourceStack.pop());
+                        const plate = sourceStack.pop();
+                        if (plate) movedPlates.push(plate);
                     }
 
                     const newDestStack = [...destStack, ...movedPlates];
@@ -1324,14 +1327,23 @@
                         triggerUnlockSuccess(index, targetStack.length);
                     }
                 } else {
-                    customers.forEach((cust, cIdx) => {
-                        if (food.id === cust.requestFood.id && cust.counterStack.length === 0) {
-                            const count = targetStack.length;
-                            cust.counterStack = tableSlots[index];
+                    // 同じ食材を要求する動物が複数いても、同じスタックを二重提供しない。
+                    const customerIndex = customers.findIndex((cust, cIdx) =>
+                        food.id === cust.requestFood.id &&
+                        cust.counterStack.length === 0 &&
+                        !completionInProgress.has(cIdx)
+                    );
+
+                    if (customerIndex !== -1) {
+                        const count = targetStack.length;
+                        if (count > 0) {
+                            const deliveredStack = [...targetStack];
+                            completionInProgress.add(customerIndex);
+                            customers[customerIndex].counterStack = deliveredStack;
                             tableSlots[index] = [];
-                            triggerUnlockSuccess(cIdx, count);
+                            triggerUnlockSuccess(customerIndex, count);
                         }
-                    });
+                    }
                 }
             }
         }
@@ -1388,7 +1400,10 @@
             render();
 
             setTimeout(() => {
-                replaceCustomerAtIndex(customerIndex);
+                if (customers[customerIndex]) {
+                    replaceCustomerAtIndex(customerIndex);
+                }
+                completionInProgress.delete(customerIndex);
                 render();
                 saveGameState();
             }, 1000);
@@ -1421,6 +1436,7 @@
         // 皿置き場＋動物前の皿を50皿消費して一掃する。
         // 右→左へ縦線を走らせ、その線を通過した皿から消える演出を行う。
         let isCleaningUp = false;
+        let completionInProgress = new Set();
 
         function cleanupAllPlates() {
             if (!isGameActive || isCleaningUp) return;
