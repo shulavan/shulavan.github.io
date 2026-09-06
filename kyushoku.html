@@ -236,39 +236,47 @@
         }
 
         /* =========================================================
-           スマホ用フッター表示安定化
-           flex-shrink-0 + mt-auto の組み合わせでは、縦長でない
-           スマホで子要素の合計高さが viewport を超えると、
-           フッターが #app の外側へ押し出され overflow:hidden で
-           丸ごと切り取られることがある。フッターを app 内の
-           absolute レイヤーとして固定し、dvh も併用して解決する。
+           スマホレイアウト安定化
+           フッターをviewport下端に固定し、皿置き場は固定高さにする。
+           flex:1 で皿置き場が伸びると、3行のセルが縦方向に引き伸ばされ、
+           フッターを押し出したり重ねたりする原因になるため使用しない。
            ========================================================= */
+        html, body {
+            width: 100%;
+            height: 100%;
+            margin: 0;
+            overflow: hidden;
+        }
+
         body {
-            height: 100dvh;
             min-height: 100dvh;
         }
 
         #app {
             height: 100dvh !important;
-            min-height: 0;
+            min-height: 0 !important;
             position: relative;
+            overflow: hidden;
         }
 
         .game-footer {
-            position: absolute !important;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            width: 100%;
-            height: 68px;
+            position: fixed !important;
+            left: 50% !important;
+            right: auto !important;
+            bottom: 0 !important;
+            transform: translateX(-50%);
+            width: min(100vw, 28rem) !important;
+            height: 68px !important;
             min-height: 68px !important;
-            margin-top: 0 !important;
+            max-height: 68px !important;
+            margin: 0 !important;
             box-sizing: border-box;
             display: flex !important;
             visibility: visible !important;
             opacity: 1 !important;
-            z-index: 80 !important;
+            z-index: 100 !important;
             padding-bottom: max(6px, env(safe-area-inset-bottom));
+            overflow: visible !important;
         }
 
         .game-footer > div:first-child {
@@ -276,89 +284,131 @@
             visibility: visible !important;
             opacity: 1 !important;
             min-width: 0;
+            overflow: visible !important;
         }
 
         .game-footer .chef-icon {
             display: block !important;
             visibility: visible !important;
-            flex-shrink: 0;
+            opacity: 1 !important;
+            flex-shrink: 0 !important;
         }
 
         .game-footer .chef-speech-bubble {
             display: block !important;
             visibility: visible !important;
-            overflow: visible;
+            opacity: 1 !important;
+            overflow: visible !important;
         }
 
         #cleanup-btn {
             display: flex !important;
             visibility: visible !important;
+            opacity: 1 !important;
             flex-shrink: 0 !important;
         }
 
-        /* フッターと皿置き場が重ならないよう、スマホでは
-           皿置き場の高さを viewport に合わせて確保する。 */
+        /* スマホでは皿置き場を固定高さにする。
+           これが重要。height:100% / flex:1 を使うと3行の隙間が
+           viewportの余りを吸収して不自然に広がる。 */
         @media (max-width: 640px) {
-            #app > .game-footer {
-                height: 68px;
-                min-height: 68px !important;
-            }
-
             #app > .wood-shelf {
-                flex: 1 1 auto;
-                min-height: 0;
-                max-height: calc(100% - 390px);
-                margin-bottom: 72px;
+                flex: 0 0 245px !important;
+                height: 245px !important;
+                min-height: 245px !important;
+                max-height: 245px !important;
+                margin-bottom: 0 !important;
+                box-sizing: border-box;
             }
 
             #table-slots {
-                min-height: 0 !important;
-                height: 100%;
-                grid-template-rows: repeat(3, minmax(0, 1fr));
+                height: 225px !important;
+                min-height: 225px !important;
+                max-height: 225px !important;
+                grid-template-rows: repeat(3, 70px) !important;
+                gap: 8px !important;
+                align-items: end !important;
             }
 
             #table-slots > div {
-                height: auto !important;
-                min-height: 54px;
+                height: 70px !important;
+                min-height: 70px !important;
+                max-height: 70px !important;
             }
         }
 
+        /* 高さが小さいスマホでは皿置き場だけを縮める。
+           フッターは常にviewport最下部に残す。 */
         @media (max-width: 640px) and (max-height: 760px) {
             #app > .wood-shelf {
-                max-height: calc(100% - 350px);
+                flex-basis: 215px !important;
+                height: 215px !important;
+                min-height: 215px !important;
+                max-height: 215px !important;
             }
-            #app > .game-footer {
-                height: 64px;
-                min-height: 64px !important;
+
+            #table-slots {
+                height: 195px !important;
+                min-height: 195px !important;
+                max-height: 195px !important;
+                grid-template-rows: repeat(3, 60px) !important;
+                gap: 7px !important;
             }
+
             #table-slots > div {
-                min-height: 48px;
+                height: 60px !important;
+                min-height: 60px !important;
+                max-height: 60px !important;
+            }
+
+            #app > .game-footer {
+                height: 62px !important;
+                min-height: 62px !important;
+                max-height: 62px !important;
+            }
+
+            #app > .game-footer .chef-icon {
+                font-size: 2.25rem !important;
+            }
+
+            #app > .game-footer .chef-speech-bubble {
+                font-size: 9px !important;
+                padding: 3px 7px !important;
             }
         }
 
-        /* 小さいスマホでもフッターとゲーム盤面を同時に表示 */
-        @media (max-height: 760px) {
+        /* 極端に小さい端末でもフッターの中身が潰れないようにする */
+        @media (max-width: 360px) {
             #app > .game-footer {
-                min-height: 58px;
-                height: 58px;
+                height: 60px !important;
+                min-height: 60px !important;
+                max-height: 60px !important;
+                padding-left: 6px !important;
+                padding-right: 6px !important;
             }
+
             #app > .game-footer .chef-icon {
-                font-size: 2.35rem;
+                font-size: 2rem !important;
             }
+
             #app > .game-footer .chef-speech-bubble {
-                font-size: 9px;
-                padding: 3px 8px;
+                font-size: 8px !important;
+                padding: 2px 5px !important;
+                max-width: 150px !important;
             }
-            #table-slots {
-                min-height: 0 !important;
+
+            #cleanup-btn {
+                width: 54px !important;
+                height: 40px !important;
             }
-            #table-slots > div {
-                height: 58px !important;
-            }
-            #table-slots > div > .relative {
-                transform: scale(0.92);
-                transform-origin: center bottom;
-            }
+        }
+
+        /* =========================================================
+           フッター固定時の内容切れ防止
+           ========================================================= */
+        .game-footer,
+        .game-footer * {
+            box-sizing: border-box;
         }
     </style>
 </head>
