@@ -170,6 +170,7 @@
 
         /* 動物前の配膳台を縦方向に1.5倍（40px → 60px） */
         .counter-slot-tall {
+            width: 60px !important;
             height: 60px !important;
             min-height: 60px !important;
             max-height: 60px !important;
@@ -1596,7 +1597,7 @@
                             ${cust.animal}
                         </div>
 
-                        <div id="counter-slot-${cIdx}" class="slot-base counter-slot-tall relative w-13 flex items-center justify-center cursor-pointer transition-all z-40">
+                        <div id="counter-slot-${cIdx}" class="slot-base counter-slot-tall relative w-[60px] flex items-center justify-center cursor-pointer transition-all z-40">
                             ${cStack.length > 0 ? renderPlateStackHTML(cStack, liftedCount) : `
                                 <span class="text-[9px] font-extrabold text-amber-900/60">${reqFood.emoji}のみ</span>
                             `}
