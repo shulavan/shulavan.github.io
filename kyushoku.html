@@ -1333,8 +1333,10 @@
                 if (topFoodId !== customer.requestFood.id) return;
 
                 completionInProgress.add(index);
-                // 動物前では10枚単位で完成。余分な同食材があっても、完成分だけを処理する。
-                triggerUnlockSuccess(index, 10);
+                // 動物前では「上から連続している同じ食材」をまとめて提供する。
+                // 10枚が最低条件で、15/20/25/30枚以上なら配膳枚数ボーナスを適用する。
+                // これにより、要求食材の15枚スタックなら15枚分がボーナス対象になる。
+                triggerUnlockSuccess(index, topCount);
                 return;
             }
 
@@ -1348,7 +1350,10 @@
 
             if (customerIndex === -1) return;
 
-            const deliveredCount = 10;
+            // 完成に使うのは「上から連続している要求食材」だけ。
+            // 15/20/25/30枚など、まとまっている枚数をそのまま配膳枚数として扱い、
+            // 配膳枚数ボーナスの判定に渡す。下に別食材があればそこは残す。
+            const deliveredCount = topCount;
             const deliveredStack = targetStack.slice(targetStack.length - deliveredCount);
             const remainingStack = targetStack.slice(0, targetStack.length - deliveredCount);
 
