@@ -1,0 +1,1451 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>コンビニ・シミュレーター JAPAN 3D - Edogawaマート</title>
+    
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            user-select: none;
+            -webkit-user-select: none;
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background-color: #040711;
+            touch-action: none;
+        }
+        canvas {
+            display: block;
+            width: 100vw;
+            height: 100vh;
+        }
+        .glass-panel {
+            background: rgba(15, 23, 42, 0.85);
+            backdrop-filter: blur(14px);
+            -webkit-backdrop-filter: blur(14px);
+            border: 1px solid rgba(255, 255, 255, 0.15);
+        }
+        .joystick-base {
+            background: rgba(255, 255, 255, 0.15);
+            border: 2px solid rgba(255, 255, 255, 0.35);
+            backdrop-filter: blur(10px);
+        }
+        .joystick-thumb {
+            background: radial-gradient(circle, #38bdf8 0%, #0284c7 100%);
+            box-shadow: 0 0 18px rgba(56, 189, 248, 0.7);
+        }
+    </style>
+</head>
+<body class="bg-slate-950 text-slate-100 overflow-hidden">
+
+    <div id="ui-layer" class="fixed inset-0 pointer-events-none z-20 flex flex-col justify-between p-4 sm:p-6">
+        <div class="flex justify-between items-start w-full gap-3">
+            <!-- Store Revenue Balance -->
+            <div class="glass-panel px-5 py-3 rounded-2xl shadow-2xl flex items-center space-x-3 border-emerald-500/30">
+                <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-emerald-400 to-teal-600 flex items-center justify-center font-black text-xl text-slate-950 shadow-lg">
+                    ¥
+                </div>
+                <div>
+                    <div class="text-[10px] tracking-wider text-slate-400 font-bold uppercase">店舗売上残高</div>
+                    <div id="money-display" class="text-2xl sm:text-3xl font-extrabold text-emerald-400 font-mono tracking-tight">
+                        ¥2,500
+                    </div>
+                </div>
+            </div>
+
+            <!-- Store Info Badge -->
+            <div class="glass-panel px-5 py-3 rounded-2xl shadow-2xl text-right border-sky-500/30">
+                <div class="text-[10px] tracking-wider text-slate-400 font-bold uppercase">CONVENIENCE STORE</div>
+                <div class="font-extrabold text-base sm:text-lg text-amber-400 flex items-center justify-end space-x-1.5">
+                    <span>🏪</span>
+                    <span id="store-name-hud">Edogawaマート</span>
+                </div>
+            </div>
+        </div>
+
+        <div id="toast-container" class="self-center transform translate-y-[-100px] opacity-0 transition-all duration-300 pointer-events-none">
+            <div class="glass-panel bg-emerald-950/90 border-emerald-500/50 text-emerald-200 px-6 py-3 rounded-full font-bold text-sm shadow-2xl flex items-center space-x-2">
+                <span id="toast-icon">✨</span>
+                <span id="toast-message">商品を入荷しました！</span>
+            </div>
+        </div>
+
+        <div class="flex justify-between items-end w-full pointer-events-none mb-2">
+            <!-- Touch Joystick Base -->
+            <div class="pointer-events-auto relative">
+                <div id="joystick-container" class="w-32 h-32 sm:w-36 sm:h-36 joystick-base rounded-full relative flex items-center justify-center shadow-2xl">
+                    <div id="joystick-thumb" class="w-14 h-14 joystick-thumb rounded-full absolute transform -translate-x-1/2 -translate-y-1/2 left-1/2 top-1/2 transition-transform duration-75"></div>
+                </div>
+            </div>
+
+            <!-- Interaction Prompt Card -->
+            <div id="action-prompt-container" class="pointer-events-auto flex flex-col items-end space-y-3">
+                <div id="interaction-card" class="hidden glass-panel bg-gradient-to-r from-emerald-900/90 to-teal-900/90 border-emerald-400/50 p-4 rounded-2xl shadow-2xl max-w-xs text-right animate-bounce">
+                    <div class="text-xs font-bold text-emerald-300 uppercase tracking-widest mb-1">アクション</div>
+                    <div id="interaction-text" class="text-sm font-extrabold text-white mb-3">コーナー解放</div>
+                    <button id="interaction-btn" class="w-full bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-slate-950 font-black px-5 py-2.5 rounded-xl shadow-lg active:scale-95 transition-all text-sm">
+                        実行する [ TAP ]
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="canvas-container" class="absolute inset-0 w-full h-full z-10"></div>
+
+    <script>
+        const AudioEngine = {
+            ctx: null,
+            init() {
+                if (!this.ctx) {
+                    const AudioCtx = window.AudioContext || window.webkitAudioContext;
+                    if (AudioCtx) this.ctx = new AudioCtx();
+                }
+                if (this.ctx && this.ctx.state === 'suspended') {
+                    this.ctx.resume();
+                }
+            },
+            playRegisterBeep() {
+                this.init();
+                if (!this.ctx) return;
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(1800, this.ctx.currentTime);
+                gain.gain.setValueAtTime(0.15, this.ctx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + 0.12);
+                osc.connect(gain);
+                gain.connect(this.ctx.destination);
+                osc.start();
+                osc.stop(this.ctx.currentTime + 0.12);
+            },
+            playCoinSound() {
+                this.init();
+                if (!this.ctx) return;
+                const now = this.ctx.currentTime;
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                osc.type = 'triangle';
+                osc.frequency.setValueAtTime(987.77, now);
+                osc.frequency.setValueAtTime(1318.51, now + 0.08);
+                gain.gain.setValueAtTime(0.2, now);
+                gain.gain.exponentialRampToValueAtTime(0.001, now + 0.35);
+                osc.connect(gain);
+                gain.connect(this.ctx.destination);
+                osc.start(now);
+                osc.stop(now + 0.35);
+            },
+            playDoorChime() {
+                this.init();
+                if (!this.ctx) return;
+                const now = this.ctx.currentTime;
+                [659.25, 523.25, 659.25, 783.99].forEach((freq, idx) => {
+                    const osc = this.ctx.createOscillator();
+                    const gain = this.ctx.createGain();
+                    osc.type = 'sine';
+                    osc.frequency.setValueAtTime(freq, now + idx * 0.15);
+                    gain.gain.setValueAtTime(0.12, now + idx * 0.15);
+                    gain.gain.exponentialRampToValueAtTime(0.001, now + idx * 0.15 + 0.4);
+                    osc.connect(gain);
+                    gain.connect(this.ctx.destination);
+                    osc.start(now + idx * 0.15);
+                    osc.stop(now + idx * 0.15 + 0.4);
+                });
+            },
+            playSlideDoor() {
+                this.init();
+                if (!this.ctx) return;
+                const now = this.ctx.currentTime;
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(300, now);
+                osc.frequency.linearRampToValueAtTime(150, now + 0.25);
+                gain.gain.setValueAtTime(0.08, now);
+                gain.gain.exponentialRampToValueAtTime(0.001, now + 0.25);
+                osc.connect(gain);
+                gain.connect(this.ctx.destination);
+                osc.start(now);
+                osc.stop(now + 0.25);
+            }
+        };
+
+        const TextureGenerator = {
+            cache: {},
+            getTexture(key, drawFn, width = 256, height = 256) {
+                if (this.cache[key]) return this.cache[key];
+                const canvas = document.createElement('canvas');
+                canvas.width = width;
+                canvas.height = height;
+                const ctx = canvas.getContext('2d');
+                drawFn(ctx, width, height);
+                const texture = new THREE.CanvasTexture(canvas);
+                texture.wrapS = THREE.RepeatWrapping;
+                texture.wrapT = THREE.RepeatWrapping;
+                this.cache[key] = texture;
+                return texture;
+            },
+
+            createFloorTexture() {
+                return this.getTexture('store_floor_tile_v2', (ctx, w, h) => {
+                    ctx.fillStyle = '#e2e8f0';
+                    ctx.fillRect(0, 0, w, h);
+                    ctx.strokeStyle = '#64748b';
+                    ctx.lineWidth = 6;
+                    ctx.strokeRect(0, 0, w, h);
+                    ctx.fillStyle = 'rgba(255, 255, 255, 0.4)';
+                    ctx.fillRect(8, 8, w - 16, 14);
+                    ctx.fillStyle = 'rgba(100, 116, 139, 0.12)';
+                    ctx.fillRect(8, h - 22, w - 16, 14);
+                }, 256, 256);
+            },
+
+            createEntranceMatTexture() {
+                return this.getTexture('entrance_mat_v1', (ctx, w, h) => {
+                    ctx.fillStyle = '#1e293b';
+                    ctx.fillRect(0, 0, w, h);
+                    ctx.strokeStyle = '#f59e0b';
+                    ctx.lineWidth = 8;
+                    ctx.strokeRect(8, 8, w - 16, h - 16);
+                    ctx.fillStyle = '#f59e0b';
+                    ctx.font = 'bold 26px sans-serif';
+                    ctx.textAlign = 'center';
+                    ctx.fillText('いらっしゃいませ', w / 2, 55);
+                    ctx.fillStyle = '#ffffff';
+                    ctx.font = 'bold 18px sans-serif';
+                    ctx.fillText('Welcome', w / 2, 95);
+                }, 256, 128);
+            },
+
+            createWoodTexture() {
+                return this.getTexture('wood_grain_counter', (ctx, w, h) => {
+                    ctx.fillStyle = '#3f2314';
+                    ctx.fillRect(0, 0, w, h);
+                    ctx.fillStyle = '#2b160a';
+                    for (let i = 0; i < 20; i++) {
+                        ctx.fillRect(0, i * 13, w, 4);
+                    }
+                }, 256, 256);
+            },
+
+            createSignboardTexture() {
+                return this.getTexture('entrance_sign_header_edogawa_v3', (ctx, w, h) => {
+                    ctx.fillStyle = '#059669';
+                    ctx.fillRect(0, 0, w, h);
+
+                    ctx.strokeStyle = '#ffffff';
+                    ctx.lineWidth = 12;
+                    ctx.strokeRect(14, 14, w - 28, h - 28);
+
+                    ctx.fillStyle = '#ffffff';
+                    ctx.font = '900 56px sans-serif';
+                    ctx.textAlign = 'center';
+                    ctx.textBaseline = 'middle';
+                    ctx.fillText('Edogawaマート', w / 2, h * 0.38);
+
+                    ctx.font = 'bold 28px sans-serif';
+                    ctx.fillText('酒 ・ たばこ ・ 銀行ATM ・ コピー', w / 2, h * 0.73);
+                }, 1024, 256);
+            },
+
+            createSelfCheckoutSignTexture() {
+                return this.getTexture('self_checkout_sign_board_v1', (ctx, w, h) => {
+                    ctx.fillStyle = '#0284c7';
+                    ctx.fillRect(0, 0, w, h);
+
+                    ctx.strokeStyle = '#f59e0b';
+                    ctx.lineWidth = 10;
+                    ctx.strokeRect(8, 8, w - 16, h - 16);
+
+                    ctx.fillStyle = '#ffffff';
+                    ctx.font = '900 48px sans-serif';
+                    ctx.textAlign = 'center';
+                    ctx.textBaseline = 'middle';
+                    ctx.fillText('レジカウンター', w / 2, h * 0.40);
+
+                    ctx.fillStyle = '#fde047';
+                    ctx.font = 'bold 24px sans-serif';
+                    ctx.fillText('CASHIER / CHECKOUT', w / 2, h * 0.76);
+                }, 512, 256);
+            },
+
+            createBackroomDoorTexture() {
+                return this.getTexture('backroom_door_sign', (ctx, w, h) => {
+                    ctx.fillStyle = '#475569';
+                    ctx.fillRect(0, 0, w, h);
+                    
+                    ctx.strokeStyle = '#334155';
+                    ctx.lineWidth = 10;
+                    ctx.strokeRect(5, 5, w - 10, h - 10);
+
+                    ctx.fillStyle = '#f59e0b';
+                    ctx.fillRect(20, 30, w - 40, 120);
+                    
+                    ctx.strokeStyle = '#000000';
+                    ctx.lineWidth = 4;
+                    ctx.strokeRect(20, 30, w - 40, 120);
+
+                    ctx.fillStyle = '#000000';
+                    ctx.font = '900 28px sans-serif';
+                    ctx.textAlign = 'center';
+                    ctx.fillText('関係者以外', w / 2, 75);
+                    
+                    ctx.fillStyle = '#dc2626';
+                    ctx.fillText('立入り禁止', w / 2, 120);
+                }, 256, 256);
+            },
+
+            createToiletDoorTexture() {
+                return this.getTexture('toilet_door_sign_v2', (ctx, w, h) => {
+                    ctx.fillStyle = '#f8fafc';
+                    ctx.fillRect(0, 0, w, h);
+
+                    ctx.strokeStyle = '#cbd5e1';
+                    ctx.lineWidth = 8;
+                    ctx.strokeRect(6, 6, w - 12, h - 12);
+
+                    ctx.fillStyle = '#0284c7';
+                    ctx.fillRect(20, 30, w - 40, 110);
+
+                    ctx.fillStyle = '#ffffff';
+                    ctx.font = '900 36px sans-serif';
+                    ctx.textAlign = 'center';
+                    ctx.fillText('お手洗い', w / 2, 75);
+
+                    ctx.font = 'bold 20px sans-serif';
+                    ctx.fillText('RESTROOM 🚻', w / 2, 115);
+                }, 256, 256);
+            },
+
+            createWallTexture() {
+                return this.getTexture('wood_panel_wall_v2', (ctx, w, h) => {
+                    ctx.fillStyle = '#e5c08b';
+                    ctx.fillRect(0, 0, w, h);
+                    ctx.fillStyle = '#d4a373';
+                    for (let i = 0; i < 45; i++) {
+                        const y = (i * 5.6) + Math.random() * 2;
+                        ctx.fillRect(0, y, w, 1 + Math.random() * 1.5);
+                    }
+                    ctx.fillStyle = '#bc6c25';
+                    for (let i = 0; i < 18; i++) {
+                        const y = (i * 14.0) + Math.random() * 3;
+                        ctx.fillRect(0, y, w, 1);
+                    }
+                    ctx.strokeStyle = '#a36839';
+                    ctx.lineWidth = 3;
+                    for (let x = 0; x <= w; x += 64) {
+                        ctx.beginPath();
+                        ctx.moveTo(x, 0);
+                        ctx.lineTo(x, h);
+                        ctx.stroke();
+                    }
+                    ctx.fillStyle = '#5c3818';
+                    ctx.fillRect(0, h - 16, w, 16);
+                }, 256, 256);
+            },
+
+            createBoxTexture() {
+                return this.getTexture('delivery_box_v3', (ctx, w, h) => {
+                    ctx.fillStyle = '#b45309';
+                    ctx.fillRect(0, 0, w, h);
+                    ctx.fillStyle = '#78350f';
+                    ctx.fillRect(0, h / 2 - 15, w, 30);
+                    ctx.fillStyle = '#ffffff';
+                    ctx.fillRect(20, 20, w - 40, 60);
+                    ctx.fillStyle = '#000000';
+                    ctx.font = 'bold 20px sans-serif';
+                    ctx.textAlign = 'center';
+                    ctx.fillText('店舗入荷用ダンボール', w / 2, 45);
+                    ctx.fillStyle = '#dc2626';
+                    ctx.fillText('Edogawaマート 配送便', w / 2, 68);
+                }, 256, 256);
+            },
+
+            createCopyMachineTexture() {
+                return this.getTexture('copy_machine_screen_v1', (ctx, w, h) => {
+                    ctx.fillStyle = '#0f172a';
+                    ctx.fillRect(0, 0, w, h);
+                    
+                    ctx.fillStyle = '#0284c7';
+                    ctx.fillRect(0, 0, w, 40);
+                    ctx.fillStyle = '#ffffff';
+                    ctx.font = 'bold 20px sans-serif';
+                    ctx.textAlign = 'center';
+                    ctx.fillText('マルチコピー機', w / 2, 28);
+
+                    const btnColors = ['#22c55e', '#3b82f6', '#f59e0b', '#ec4899'];
+                    const btnLabels = ['コピー', 'プリント', 'スキャン', '行政サービス'];
+                    btnColors.forEach((color, i) => {
+                        const bx = (i % 2) * 115 + 12;
+                        const by = Math.floor(i / 2) * 82 + 55;
+                        ctx.fillStyle = color;
+                        ctx.fillRect(bx, by, 110, 70);
+                        ctx.fillStyle = '#ffffff';
+                        ctx.font = 'bold 16px sans-serif';
+                        ctx.fillText(btnLabels[i], bx + 55, by + 42);
+                    });
+                }, 256, 256);
+            }
+        };
+
+        const GameState = {
+            money: 2500,
+            unlockedSections: {
+                onigiri: true,
+                bento: false,
+                noodle: false,
+                snack: false,
+                drink: false
+            },
+            playerPos: new THREE.Vector3(0, 0, 3.0),
+            holdingBox: false,
+            heldItemType: null,
+            lastRestockTime: 0
+        };
+
+        const colliders = [];
+
+        const container = document.getElementById('canvas-container');
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x0a0f1d);
+        scene.fog = new THREE.FogExp2(0x0a0f1d, 0.015);
+
+        const camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.1, 100);
+
+        let renderer;
+        try {
+            renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: "default" });
+        } catch (e) {
+            renderer = new THREE.WebGLRenderer({ antialias: false });
+        }
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
+        renderer.shadowMap.enabled = true;
+        renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+        container.appendChild(renderer.domElement);
+
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.95);
+        scene.add(ambientLight);
+
+        const mainSun = new THREE.DirectionalLight(0xfffbeb, 0.6);
+        mainSun.position.set(6, 16, 8);
+        mainSun.castShadow = true;
+        mainSun.shadow.mapSize.width = 1024;
+        mainSun.shadow.mapSize.height = 1024;
+        mainSun.shadow.bias = -0.0005;
+        scene.add(mainSun);
+
+        const floorTex = TextureGenerator.createFloorTexture();
+        floorTex.repeat.set(16, 12);
+        const floorMat = new THREE.MeshStandardMaterial({ map: floorTex, roughness: 0.15, metalness: 0.05 });
+        const floor = new THREE.Mesh(new THREE.PlaneGeometry(18.6, 10.3), floorMat);
+        floor.rotation.x = -Math.PI / 2;
+        floor.receiveShadow = true;
+        scene.add(floor);
+
+        const matTex = TextureGenerator.createEntranceMatTexture();
+        const matMesh = new THREE.Mesh(
+            new THREE.PlaneGeometry(2.8, 1.4),
+            new THREE.MeshStandardMaterial({ map: matTex, roughness: 0.8 })
+        );
+        matMesh.rotation.x = -Math.PI / 2;
+        matMesh.position.set(0, 0.01, 4.4);
+        scene.add(matMesh);
+
+        const wallTex = TextureGenerator.createWallTexture();
+        const wallMat = new THREE.MeshStandardMaterial({ map: wallTex, roughness: 0.5 });
+        const frontWallMat = new THREE.MeshStandardMaterial({ 
+            map: wallTex, roughness: 0.5, transparent: true, opacity: 0.28, depthWrite: false 
+        });
+        const baseboardMat = new THREE.MeshStandardMaterial({ color: 0x451a03, roughness: 0.4 });
+
+        function createWallWithBaseboard(width, height, depth, x, y, z, isFront = false, addCollider = true) {
+            const group = new THREE.Group();
+            const activeWallMat = isFront ? frontWallMat : wallMat;
+            const wallMesh = new THREE.Mesh(new THREE.BoxGeometry(width, height, depth), activeWallMat);
+            wallMesh.position.set(0, height / 2, 0);
+            wallMesh.castShadow = !isFront;
+            wallMesh.receiveShadow = true;
+            group.add(wallMesh);
+
+            const activeBbMat = isFront ? new THREE.MeshStandardMaterial({ color: 0x451a03, transparent: true, opacity: 0.3 }) : baseboardMat;
+            const bbHeight = 0.25;
+            const bbMesh = new THREE.Mesh(new THREE.BoxGeometry(width + 0.02, bbHeight, depth + 0.02), activeBbMat);
+            bbMesh.position.set(0, bbHeight / 2, 0);
+            group.add(bbMesh);
+
+            group.position.set(x, y, z);
+            scene.add(group);
+
+            if (addCollider) {
+                colliders.push({
+                    minX: x - width / 2 - 0.2,
+                    maxX: x + width / 2 + 0.2,
+                    minZ: z - depth / 2 - 0.2,
+                    maxZ: z + depth / 2 + 0.2
+                });
+            }
+        }
+
+        // Outer Store Perimeter Walls
+        createWallWithBaseboard(18.6, 4.8, 0.3, 0, 0, -5.15); // Back
+        createWallWithBaseboard(0.3, 4.8, 5.6, -9.3, 0, -2.35); // Left North Section
+        createWallWithBaseboard(0.3, 4.8, 3.2, -9.3, 0, 3.55);  // Left South Section
+        createWallWithBaseboard(0.3, 4.8, 10.3, 9.3, 0, 0);    // Right
+        createWallWithBaseboard(6.5, 4.8, 0.3, -6.0, 0, 5.15, true); // Front Left
+        createWallWithBaseboard(6.5, 4.8, 0.3, 6.0, 0, 5.15, true);  // Front Right
+
+        const restroomWallMat = new THREE.MeshStandardMaterial({ 
+            map: wallTex, roughness: 0.5, transparent: true, opacity: 1.0 
+        });
+        const restroomWallGroup = new THREE.Group();
+        const restroomWallMesh = new THREE.Mesh(new THREE.BoxGeometry(3.8, 4.2, 0.2), restroomWallMat);
+        restroomWallMesh.position.set(0, 2.1, 0);
+        restroomWallMesh.castShadow = true;
+        restroomWallMesh.receiveShadow = true;
+        restroomWallGroup.add(restroomWallMesh);
+
+        const restroomBbMesh = new THREE.Mesh(new THREE.BoxGeometry(3.82, 0.25, 0.22), baseboardMat);
+        restroomBbMesh.position.set(0, 0.125, 0);
+        restroomWallGroup.add(restroomBbMesh);
+
+        restroomWallGroup.position.set(-7.4, 0, -2.5);
+        scene.add(restroomWallGroup);
+        colliders.push({ minX: -9.3, maxX: -5.5, minZ: -2.6, maxZ: -2.4 });
+
+        // Backroom / Restroom Partition Wall (X = -5.5)
+        createWallWithBaseboard(0.2, 4.2, 0.7, -5.5, 0, -4.8);
+        createWallWithBaseboard(0.2, 4.2, 2.0, -5.5, 0, -2.2);
+        createWallWithBaseboard(0.2, 4.2, 3.8, -5.5, 0, +3.25);
+
+        const doorTex = TextureGenerator.createBackroomDoorTexture();
+        const doorMat = new THREE.MeshStandardMaterial({ map: doorTex, roughness: 0.4 });
+        const doorMesh = new THREE.Mesh(new THREE.BoxGeometry(0.08, 2.8, 1.0), doorMat);
+        doorMesh.position.set(-5.5, 1.4, 0.5);
+        doorMesh.castShadow = true;
+        scene.add(doorMesh);
+
+        let isDoorOpen = false;
+        let isToiletDoorOpen = false;
+
+        const toiletDoorPivot = new THREE.Group();
+        toiletDoorPivot.position.set(-5.5, 0, -4.35);
+        scene.add(toiletDoorPivot);
+
+        const toiletDoorTex = TextureGenerator.createToiletDoorTexture();
+        const toiletDoorMat = new THREE.MeshStandardMaterial({ map: toiletDoorTex, roughness: 0.4 });
+        const toiletDoorMesh = new THREE.Mesh(new THREE.BoxGeometry(0.08, 2.6, 1.1), toiletDoorMat);
+        toiletDoorMesh.position.set(0, 1.3, 0.55);
+        toiletDoorMesh.castShadow = true;
+        toiletDoorPivot.add(toiletDoorMesh);
+
+        // Toilet Bowl Fixture
+        const toiletBowlGroup = new THREE.Group();
+        const porcelainMat = new THREE.MeshStandardMaterial({ color: 0xf8fafc, roughness: 0.1 });
+
+        const tank = new THREE.Mesh(new THREE.BoxGeometry(0.28, 0.65, 0.5), porcelainMat);
+        tank.position.set(-0.32, 0.55, 0);
+
+        const bowlBase = new THREE.Mesh(new THREE.CylinderGeometry(0.25, 0.20, 0.45, 16), porcelainMat);
+        bowlBase.position.set(0.05, 0.225, 0);
+
+        const seat = new THREE.Mesh(new THREE.CylinderGeometry(0.27, 0.27, 0.05, 16), new THREE.MeshStandardMaterial({ color: 0x0284c7 }));
+        seat.position.set(0.05, 0.46, 0);
+
+        toiletBowlGroup.add(tank, bowlBase, seat);
+        toiletBowlGroup.scale.set(1.5, 1.5, 1.5);
+        toiletBowlGroup.position.set(-8.5, 0, -3.8);
+        scene.add(toiletBowlGroup);
+
+        const washbasinGroup = new THREE.Group();
+        const sinkBaseMat = new THREE.MeshStandardMaterial({ color: 0xf1f5f9, roughness: 0.2 });
+        const metalFaucetMat = new THREE.MeshStandardMaterial({ color: 0x94a3b8, metalness: 0.9, roughness: 0.1 });
+        const mirrorMat = new THREE.MeshStandardMaterial({ 
+            color: 0x38bdf8, metalness: 0.9, roughness: 0.1, transparent: true, opacity: 0.85,
+            emissive: 0x0284c7, emissiveIntensity: 0.35
+        });
+
+        const sinkCabinet = new THREE.Mesh(new THREE.BoxGeometry(0.65, 0.75, 0.55), sinkBaseMat);
+        sinkCabinet.position.set(0, 0.375, 0);
+        sinkCabinet.castShadow = true;
+
+        const basinInnerMat = new THREE.MeshStandardMaterial({ color: 0x0284c7, roughness: 0.1 });
+        const basinInset = new THREE.Mesh(new THREE.BoxGeometry(0.48, 0.04, 0.38), basinInnerMat);
+        basinInset.position.set(0, 0.73, 0.05);
+
+        const faucet = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.02, 0.18, 8), metalFaucetMat);
+        faucet.position.set(0, 0.84, -0.15);
+
+        const mirrorFrame = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.85, 0.04), new THREE.MeshStandardMaterial({ color: 0x334155 }));
+        mirrorFrame.position.set(0, 1.45, -0.24);
+
+        const mirrorGlass = new THREE.Mesh(new THREE.BoxGeometry(0.54, 0.79, 0.02), mirrorMat);
+        mirrorGlass.position.set(0, 1.45, -0.22);
+
+        washbasinGroup.add(sinkCabinet, basinInset, faucet, mirrorFrame, mirrorGlass);
+        washbasinGroup.scale.set(1.5, 1.5, 1.5);
+        washbasinGroup.position.set(-6.2, 0, -4.6);
+        scene.add(washbasinGroup);
+
+        // Reflection Avatar inside Restroom Mirror
+        const reflectionPlayer = new THREE.Group();
+        const refBodyMat = new THREE.MeshStandardMaterial({ color: 0x38bdf8, roughness: 0.3, emissive: 0x0284c7, emissiveIntensity: 0.4 });
+        const refHeadMat = new THREE.MeshStandardMaterial({ color: 0xfca5a5, roughness: 0.3, emissive: 0xf87171, emissiveIntensity: 0.3 });
+
+        const refBody = new THREE.Mesh(new THREE.CylinderGeometry(0.28, 0.22, 1.0, 12), refBodyMat);
+        refBody.position.y = 0.9;
+
+        const refHead = new THREE.Mesh(new THREE.SphereGeometry(0.22, 12, 12), refHeadMat);
+        refHead.position.y = 1.55;
+
+        reflectionPlayer.add(refBody, refHead);
+        reflectionPlayer.visible = false;
+        scene.add(reflectionPlayer);
+
+        const toiletLight = new THREE.PointLight(0xffedd5, 0.9, 6);
+        toiletLight.position.set(-7.4, 3.2, -3.8);
+        scene.add(toiletLight);
+
+        const rearDoorPivot = new THREE.Group();
+        rearDoorPivot.position.set(-9.3, 0, 0.55);
+        scene.add(rearDoorPivot);
+
+        const rearDoorMesh = new THREE.Mesh(new THREE.BoxGeometry(0.08, 2.7, 1.3), doorMat);
+        rearDoorMesh.position.set(0, 1.35, 0.65);
+        rearDoorMesh.castShadow = true;
+        rearDoorPivot.add(rearDoorMesh);
+
+        let isRearDoorOpenTarget = false;
+
+        const frameMat = new THREE.MeshStandardMaterial({ color: 0x334155, roughness: 0.4 });
+        const frameTop = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.1, 1.4), frameMat);
+        frameTop.position.set(-9.3, 2.75, 1.2);
+        const frameLeft = new THREE.Mesh(new THREE.BoxGeometry(0.12, 2.7, 0.08), frameMat);
+        frameLeft.position.set(-9.3, 1.35, 0.51);
+        const frameRight = new THREE.Mesh(new THREE.BoxGeometry(0.12, 2.7, 0.08), frameMat);
+        frameRight.position.set(-9.3, 1.35, 1.89);
+        scene.add(frameTop, frameLeft, frameRight);
+
+        const exitSignMat = new THREE.MeshStandardMaterial({ color: 0x16a34a, emissive: 0x15803d, emissiveIntensity: 0.8 });
+        const exitSign = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.28, 0.6), exitSignMat);
+        exitSign.position.set(-9.26, 2.95, 1.2);
+        scene.add(exitSign);
+
+        // Main Entrance Header Signboard
+        const signTex = TextureGenerator.createSignboardTexture();
+        const signGreenMat = new THREE.MeshStandardMaterial({ color: 0x059669, roughness: 0.3 });
+        const signTextMat = new THREE.MeshStandardMaterial({ map: signTex, roughness: 0.3 });
+        const signMaterials = [
+            signGreenMat, signGreenMat, signGreenMat, signGreenMat, signTextMat, signTextMat
+        ];
+
+        const signMesh = new THREE.Mesh(new THREE.BoxGeometry(5.2, 0.9, 0.1), signMaterials);
+        signMesh.position.set(0, 4.0, 5.1);
+        scene.add(signMesh);
+
+        const boxTex = TextureGenerator.createBoxTexture();
+        const boxMat = new THREE.MeshStandardMaterial({ map: boxTex, roughness: 0.7 });
+        const boxGeom = new THREE.BoxGeometry(0.8, 0.6, 0.8);
+
+        const boxPositions = [
+            [-8.0, 0.3, -0.5, 0.1], [-7.2, 0.3, -0.5, -0.2], [-8.0, 0.9, -0.5, 0.05],
+            [-8.0, 0.3, 0.5, 0.3],  [-6.8, 0.3, -0.5, 0],    [-6.8, 0.9, -0.5, -0.1]
+        ];
+
+        boxPositions.forEach(([bx, by, bz, brot]) => {
+            const box = new THREE.Mesh(boxGeom, boxMat);
+            box.position.set(bx, by, bz);
+            box.rotation.y = brot;
+            box.castShadow = true;
+            box.receiveShadow = true;
+            scene.add(box);
+            colliders.push({
+                minX: bx - 0.4, maxX: bx + 0.4,
+                minZ: bz - 0.4, maxZ: bz + 0.4
+            });
+        });
+
+        // Copy Machine
+        const copyGroup = new THREE.Group();
+        const copyBodyMat = new THREE.MeshStandardMaterial({ color: 0xe2e8f0, roughness: 0.3 });
+        const copyAccentMat = new THREE.MeshStandardMaterial({ color: 0x334155, roughness: 0.4 });
+        
+        const copyBase = new THREE.Mesh(new THREE.BoxGeometry(1.1, 0.75, 0.8), copyBodyMat);
+        copyBase.position.set(0, 0.375, 0);
+        copyBase.castShadow = true;
+        copyBase.receiveShadow = true;
+        copyGroup.add(copyBase);
+
+        const trayMat = new THREE.MeshStandardMaterial({ color: 0x64748b, roughness: 0.5 });
+        [0.25, 0.50].forEach(yPos => {
+            const tray = new THREE.Mesh(new THREE.BoxGeometry(0.85, 0.10, 0.02), trayMat);
+            tray.position.set(0, yPos, 0.41);
+            copyGroup.add(tray);
+        });
+
+        const scannerUnit = new THREE.Mesh(new THREE.BoxGeometry(1.1, 0.22, 0.8), copyAccentMat);
+        scannerUnit.position.set(0, 0.86, 0);
+        scannerUnit.castShadow = true;
+        copyGroup.add(scannerUnit);
+
+        const scannerLid = new THREE.Mesh(new THREE.BoxGeometry(1.05, 0.05, 0.75), copyBodyMat);
+        scannerLid.position.set(0, 0.995, 0);
+        copyGroup.add(scannerLid);
+
+        const copyScreenTex = TextureGenerator.createCopyMachineTexture();
+        const copyScreenMat = new THREE.MeshStandardMaterial({ 
+            map: copyScreenTex, roughness: 0.2, emissive: 0x1e293b, emissiveIntensity: 0.15 
+        });
+        const screenPanel = new THREE.Mesh(new THREE.BoxGeometry(0.55, 0.38, 0.04), copyScreenMat);
+        screenPanel.position.set(-0.2, 1.15, 0.2);
+        screenPanel.rotation.x = -Math.PI / 5;
+        copyGroup.add(screenPanel);
+
+        const coinVendorMat = new THREE.MeshStandardMaterial({ color: 0x475569, roughness: 0.3 });
+        const coinVendor = new THREE.Mesh(new THREE.BoxGeometry(0.28, 0.65, 0.38), coinVendorMat);
+        coinVendor.position.set(0.68, 0.48, 0.1);
+        coinVendor.castShadow = true;
+        copyGroup.add(coinVendor);
+
+        copyGroup.position.set(-4.5, 0, 4.0);
+        scene.add(copyGroup);
+        colliders.push({ minX: -5.2, maxX: -3.8, minZ: 3.5, maxZ: 4.5 });
+
+        const woodTex = TextureGenerator.createWoodTexture();
+        woodTex.repeat.set(1, 2);
+        const counterWoodMat = new THREE.MeshStandardMaterial({ map: woodTex, roughness: 0.3, metalness: 0.1 });
+
+        const verticalCounter = new THREE.Mesh(new THREE.BoxGeometry(0.8, 1.0, 2.8), counterWoodMat);
+        verticalCounter.position.set(-4.0, 0.5, 1.0);
+        verticalCounter.castShadow = true;
+        verticalCounter.receiveShadow = true;
+        scene.add(verticalCounter);
+
+        colliders.push({ minX: -4.5, maxX: -3.5, minZ: -0.5, maxZ: 2.5 });
+
+        const posMat = new THREE.MeshStandardMaterial({ color: 0x1e293b, roughness: 0.4 });
+        const screenMat = new THREE.MeshStandardMaterial({ color: 0x0284c7, roughness: 0.2, emissive: 0x0284c7, emissiveIntensity: 0.3 });
+
+        [0.2, 1.8].forEach(zPos => {
+            const posBase = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.25, 0.5), posMat);
+            posBase.position.set(-4.0, 1.125, zPos);
+            scene.add(posBase);
+
+            const posScreen = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.25, 0.35), screenMat);
+            posScreen.position.set(-3.78, 1.32, zPos);
+            posScreen.rotation.z = -0.25;
+            scene.add(posScreen);
+        });
+
+        // Cashier Sign
+        const selfCheckoutTex = TextureGenerator.createSelfCheckoutSignTexture();
+        const selfSignMat = new THREE.MeshStandardMaterial({ 
+            map: selfCheckoutTex, roughness: 0.3, emissive: 0x0284c7, emissiveIntensity: 0.2 
+        });
+        const selfSignFrameMat = new THREE.MeshStandardMaterial({ color: 0x0284c7, metalness: 0.8, roughness: 0.2 });
+        const selfSignMaterials = [
+            selfSignFrameMat, selfSignFrameMat, selfSignFrameMat, selfSignFrameMat, selfSignMat, selfSignMat
+        ];
+
+        const selfSignGroup = new THREE.Group();
+        const selfSignMesh = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.6, 2.2), selfSignMaterials);
+        selfSignMesh.position.set(-4.0, 2.7, 1.0);
+        selfSignMesh.castShadow = true;
+        selfSignGroup.add(selfSignMesh);
+
+        const poleMat = new THREE.MeshStandardMaterial({ color: 0x64748b, metalness: 0.9, roughness: 0.2 });
+        [0.1, 1.9].forEach(pz => {
+            const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.02, 1.2), poleMat);
+            pole.position.set(-4.0, 3.4, pz);
+            selfSignGroup.add(pole);
+        });
+        scene.add(selfSignGroup);
+
+        const shelfMetalMat = new THREE.MeshStandardMaterial({ color: 0xd1d5db, metalness: 0.88, roughness: 0.22 });
+
+        function createGondolaShelf(x, z, width = 2.8, key, title) {
+            const group = new THREE.Group();
+            const backPanel = new THREE.Mesh(new THREE.BoxGeometry(width, 2.2, 0.08), shelfMetalMat);
+            backPanel.position.set(0, 1.1, 0);
+            backPanel.castShadow = true;
+            group.add(backPanel);
+
+            [-width / 2 + 0.05, width / 2 - 0.05].forEach(px => {
+                const pillar = new THREE.Mesh(new THREE.BoxGeometry(0.08, 2.2, 0.8), shelfMetalMat);
+                pillar.position.set(px, 1.1, 0);
+                group.add(pillar);
+            });
+
+            [0.5, 1.1, 1.7].forEach(yHeight => {
+                const shelfTier = new THREE.Mesh(new THREE.BoxGeometry(width - 0.1, 0.05, 0.75), shelfMetalMat);
+                shelfTier.position.set(0, yHeight, 0);
+                group.add(shelfTier);
+            });
+
+            group.position.set(x, 0, z);
+            scene.add(group);
+
+            colliders.push({
+                minX: x - width / 2 - 0.2,
+                maxX: x + width / 2 + 0.2,
+                minZ: z - 0.55,
+                maxZ: z + 0.55
+            });
+
+            return group;
+        }
+
+        const shelves = {
+            noodle: createGondolaShelf(0.8, -0.8, 2.8, 'noodle', '特製カップ麺'),
+            snack:  createGondolaShelf(4.0, -0.8, 2.8, 'snack',  'スナック・お菓子'),
+            onigiri: createGondolaShelf(0.8, 1.5,  2.8, 'onigiri', 'おにぎり・お弁当'),
+            bento:  createGondolaShelf(4.0, 1.5,  2.8, 'bento',   '特選お弁当')
+        };
+
+        // Glass Drink Cooler
+        const coolerGroup = new THREE.Group();
+        const coolerBodyMat = new THREE.MeshStandardMaterial({ color: 0x334155, metalness: 0.5, roughness: 0.3 });
+        const coolerGlassMat = new THREE.MeshStandardMaterial({ color: 0x38bdf8, transparent: true, opacity: 0.35, roughness: 0.1 });
+
+        const coolerBox = new THREE.Mesh(new THREE.BoxGeometry(0.9, 2.6, 6.2), coolerBodyMat);
+        coolerBox.position.set(8.7, 1.3, -0.5);
+        coolerGroup.add(coolerBox);
+
+        const glassDoor = new THREE.Mesh(new THREE.BoxGeometry(0.05, 2.4, 5.8), coolerGlassMat);
+        glassDoor.position.set(8.22, 1.3, -0.5);
+        coolerGroup.add(glassDoor);
+
+        scene.add(coolerGroup);
+        colliders.push({ minX: 8.0, maxX: 9.3, minZ: -3.8, maxZ: 2.8 });
+
+        function createProductMesh(type) {
+            const pGroup = new THREE.Group();
+            if (type === 'onigiri') {
+                const shape = new THREE.Shape();
+                shape.moveTo(0, 0.14);
+                shape.lineTo(-0.1, -0.08);
+                shape.lineTo(0.1, -0.08);
+                shape.closePath();
+                const extrudeSettings = { depth: 0.08, bevelEnabled: true, bevelSegments: 2, steps: 1, bevelSize: 0.01, bevelThickness: 0.01 };
+                const geom = new THREE.ExtrudeGeometry(shape, extrudeSettings);
+                const mat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.6 });
+                const mesh = new THREE.Mesh(geom, mat);
+                
+                const noriMat = new THREE.MeshStandardMaterial({ color: 0x0f172a, roughness: 0.9 });
+                const nori = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.12, 0.09), noriMat);
+                nori.position.set(0, -0.02, 0.04);
+                pGroup.add(mesh, nori);
+            } else if (type === 'bento') {
+                const box = new THREE.Mesh(new THREE.BoxGeometry(0.32, 0.06, 0.22), new THREE.MeshStandardMaterial({ color: 0x1e1b4b, roughness: 0.4 }));
+                const lid = new THREE.Mesh(new THREE.BoxGeometry(0.31, 0.02, 0.21), new THREE.MeshStandardMaterial({ color: 0xffffff, transparent: true, opacity: 0.6 }));
+                lid.position.y = 0.04;
+                pGroup.add(box, lid);
+            } else if (type === 'noodle') {
+                const geom = new THREE.CylinderGeometry(0.09, 0.07, 0.18, 16);
+                const mat = new THREE.MeshStandardMaterial({ color: 0xef4444, roughness: 0.3 });
+                const cup = new THREE.Mesh(geom, mat);
+                pGroup.add(cup);
+            } else if (type === 'snack') {
+                const bag = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.26, 0.08), new THREE.MeshStandardMaterial({ color: 0xeab308, roughness: 0.3 }));
+                pGroup.add(bag);
+            } else if (type === 'drink') {
+                const geom = new THREE.CylinderGeometry(0.05, 0.05, 0.24, 12);
+                const mat = new THREE.MeshStandardMaterial({ color: 0x16a34a, transparent: true, opacity: 0.85, roughness: 0.2 });
+                const bottle = new THREE.Mesh(geom, mat);
+                const cap = new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.025, 0.04, 12), new THREE.MeshStandardMaterial({ color: 0xffffff }));
+                cap.position.y = 0.13;
+                pGroup.add(bottle, cap);
+            }
+            return pGroup;
+        }
+
+        const spawnedProducts = [];
+        function populateShelf(shelfKey, itemType) {
+            const shelf = shelves[shelfKey];
+            if (!shelf) return;
+            [0.55, 1.15, 1.75].forEach(y => {
+                for (let x = -1.0; x <= 1.0; x += 0.4) {
+                    const prod = createProductMesh(itemType);
+                    prod.position.set(x, y, 0.1);
+                    shelf.add(prod);
+                    spawnedProducts.push(prod);
+                }
+            });
+        }
+        populateShelf('onigiri', 'onigiri');
+
+        const unlockZones = [
+            { id: 'bento', name: '特選お弁当コーナー', cost: 1000, x: 4.0, z: 1.5, unlocked: false, type: 'unlock' },
+            { id: 'noodle', name: '特製カップ麺コーナー', cost: 1200, x: 0.8, z: -0.8, unlocked: false, type: 'unlock' },
+            { id: 'snack', name: 'スナックお菓子コーナー', cost: 800, x: 4.0, z: -0.8, unlocked: false, type: 'unlock' },
+            { id: 'drink', name: '壁面ドリンククーラー', cost: 2000, x: 7.2, z: -0.5, unlocked: false, type: 'unlock' },
+            { id: 'restock', name: 'バックヤード在庫整理', cost: 0, x: -7.5, z: 0.0, unlocked: true, type: 'action' }
+        ];
+
+        const unlockPedestalGroup = new THREE.Group();
+        scene.add(unlockPedestalGroup);
+
+        function renderUnlockPedestals() {
+            while (unlockPedestalGroup.children.length > 0) {
+                unlockPedestalGroup.remove(unlockPedestalGroup.children[0]);
+            }
+
+            unlockZones.forEach(zone => {
+                if (zone.type === 'unlock' && zone.unlocked) return;
+                const color = zone.type === 'action' ? 0x38bdf8 : 0x10b981;
+                const padGeom = new THREE.CylinderGeometry(0.8, 0.8, 0.05, 32);
+                const padMat = new THREE.MeshStandardMaterial({
+                    color: color, emissive: color, emissiveIntensity: 0.6, transparent: true, opacity: 0.8
+                });
+                const pad = new THREE.Mesh(padGeom, padMat);
+                pad.position.set(zone.x, 0.03, zone.z);
+                unlockPedestalGroup.add(pad);
+            });
+        }
+        renderUnlockPedestals();
+
+        class Customer {
+            constructor() {
+                this.mesh = new THREE.Group();
+                const bodyMat = new THREE.MeshStandardMaterial({ color: Math.random() * 0xffffff, roughness: 0.5 });
+                const headMat = new THREE.MeshStandardMaterial({ color: 0xfde047, roughness: 0.6 });
+
+                const body = new THREE.Mesh(new THREE.CylinderGeometry(0.25, 0.2, 0.9, 12), bodyMat);
+                body.position.y = 0.85;
+                body.castShadow = true;
+
+                const head = new THREE.Mesh(new THREE.SphereGeometry(0.2, 12, 12), headMat);
+                head.position.y = 1.45;
+                head.castShadow = true;
+
+                this.mesh.add(body, head);
+                this.mesh.position.set(0, 0, 4.8);
+                scene.add(this.mesh);
+
+                this.state = 'SPAWN';
+                this.targetPos = new THREE.Vector3(0, 0, 0);
+                this.timer = 0;
+                this.itemType = 'onigiri';
+                this.chooseShelfTarget();
+            }
+
+            chooseShelfTarget() {
+                const available = ['onigiri'];
+                if (GameState.unlockedSections.bento) available.push('bento');
+                if (GameState.unlockedSections.noodle) available.push('noodle');
+                if (GameState.unlockedSections.snack) available.push('snack');
+                if (GameState.unlockedSections.drink) available.push('drink');
+
+                this.itemType = available[Math.floor(Math.random() * available.length)];
+                if (this.itemType === 'onigiri') this.targetPos.set(0.8, 0, 2.2);
+                else if (this.itemType === 'bento') this.targetPos.set(4.0, 0, 2.2);
+                else if (this.itemType === 'noodle') this.targetPos.set(0.8, 0, -0.1);
+                else if (this.itemType === 'snack') this.targetPos.set(4.0, 0, -0.1);
+                else if (this.itemType === 'drink') this.targetPos.set(7.2, 0, -0.5);
+
+                this.state = 'WALK_TO_SHELF';
+            }
+
+            update(delta) {
+                if (this.state === 'WALK_TO_SHELF') {
+                    this.moveTo(this.targetPos, delta, () => {
+                        this.state = 'PICKING';
+                        this.timer = 1.5;
+                    });
+                } else if (this.state === 'PICKING') {
+                    this.timer -= delta;
+                    if (this.timer <= 0) {
+                        this.targetPos.set(-2.8, 0, 1.0); 
+                        this.state = 'WALK_TO_REGISTER';
+                    }
+                } else if (this.state === 'WALK_TO_REGISTER') {
+                    this.moveTo(this.targetPos, delta, () => {
+                        this.state = 'WAIT_AT_REGISTER';
+                    });
+                } else if (this.state === 'WAIT_AT_REGISTER') {
+                    const distToPlayer = playerMesh.position.distanceTo(new THREE.Vector3(-2.8, 0, 1.0));
+                    if (distToPlayer < 2.5) {
+                        AudioEngine.playRegisterBeep();
+                        AudioEngine.playCoinSound();
+
+                        let earnings = 250;
+                        if (this.itemType === 'bento') earnings = 580;
+                        if (this.itemType === 'noodle') earnings = 220;
+                        if (this.itemType === 'drink') earnings = 160;
+
+                        GameState.money += earnings;
+                        updateHUD();
+                        showToast(`レジ清算完了: +¥${earnings}`, '💰');
+
+                        this.targetPos.set(0, 0, 5.5);
+                        this.state = 'EXITING';
+                    }
+                } else if (this.state === 'EXITING') {
+                    this.moveTo(this.targetPos, delta, () => {
+                        scene.remove(this.mesh);
+                        const idx = customers.indexOf(this);
+                        if (idx > -1) customers.splice(idx, 1);
+                    });
+                }
+            }
+
+            moveTo(target, delta, onArrival) {
+                const dir = new THREE.Vector3().subVectors(target, this.mesh.position);
+                dir.y = 0;
+                const dist = dir.length();
+                if (dist < 0.15) {
+                    onArrival();
+                } else {
+                    dir.normalize();
+                    this.mesh.position.addScaledVector(dir, delta * 2.2);
+                    this.mesh.rotation.y = Math.atan2(dir.x, dir.z);
+                }
+            }
+        }
+
+        const customers = [];
+        let customerSpawnTimer = 2.0;
+
+        class DeliveryWorker {
+            constructor() {
+                this.mesh = new THREE.Group();
+                
+                const shirtMat = new THREE.MeshStandardMaterial({ color: 0xe65100, roughness: 0.4 });
+                const capMat = new THREE.MeshStandardMaterial({ color: 0x0d47a1, roughness: 0.3 });
+                const skinMat = new THREE.MeshStandardMaterial({ color: 0xfcd34d });
+
+                const body = new THREE.Mesh(new THREE.CylinderGeometry(0.26, 0.22, 0.9, 12), shirtMat);
+                body.position.y = 0.85;
+                body.castShadow = true;
+
+                const head = new THREE.Mesh(new THREE.SphereGeometry(0.2, 12, 12), skinMat);
+                head.position.y = 1.45;
+                head.castShadow = true;
+
+                const cap = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.22, 0.08, 12), capMat);
+                cap.position.set(0, 1.6, 0.02);
+                
+                const capVisor = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.02, 0.12), capMat);
+                capVisor.position.set(0, 1.58, 0.18);
+
+                this.mesh.add(body, head, cap, capVisor);
+
+                const boxGeom = new THREE.BoxGeometry(0.65, 0.48, 0.65);
+                this.carriedBox = new THREE.Mesh(boxGeom, boxMat);
+                this.carriedBox.position.set(0, 0.9, 0.42);
+                this.carriedBox.castShadow = true;
+                this.mesh.add(this.carriedBox);
+
+                this.mesh.position.set(-10.8, 0, 1.2);
+                scene.add(this.mesh);
+
+                this.state = 'SPAWN';
+                this.timer = 0;
+            }
+
+            update(delta) {
+                if (this.state === 'SPAWN') {
+                    this.state = 'APPROACH_DOOR';
+                } else if (this.state === 'APPROACH_DOOR') {
+                    const doorPos = new THREE.Vector3(-9.2, 0, 1.2);
+                    this.moveTo(doorPos, delta, () => {
+                        isRearDoorOpenTarget = true;
+                        AudioEngine.playSlideDoor();
+                        this.state = 'ENTER_BACKROOM';
+                    });
+                } else if (this.state === 'ENTER_BACKROOM') {
+                    const dropPos = new THREE.Vector3(-7.2, 0, 1.2);
+                    this.moveTo(dropPos, delta, () => {
+                        this.state = 'UNLOAD_BOX';
+                        this.timer = 1.2;
+                    });
+                } else if (this.state === 'UNLOAD_BOX') {
+                    this.timer -= delta;
+                    if (this.timer <= 0) {
+                        this.carriedBox.visible = false;
+
+                        const newBox = new THREE.Mesh(new THREE.BoxGeometry(0.65, 0.48, 0.65), boxMat);
+                        newBox.position.set(-7.2, 0.24, 1.2);
+                        newBox.castShadow = true;
+                        scene.add(newBox);
+
+                        const bonusMoney = 300;
+                        GameState.money += bonusMoney;
+                        updateHUD();
+                        AudioEngine.playCoinSound();
+                        showToast(`業者便: 商品を入荷しました！ (+¥${bonusMoney})`, '🚚');
+
+                        this.state = 'LEAVE_BACKROOM';
+                    }
+                } else if (this.state === 'LEAVE_BACKROOM') {
+                    const doorPos = new THREE.Vector3(-9.2, 0, 1.2);
+                    this.moveTo(doorPos, delta, () => {
+                        this.state = 'EXIT_DOOR';
+                    });
+                } else if (this.state === 'EXIT_DOOR') {
+                    const outsidePos = new THREE.Vector3(-10.8, 0, 1.2);
+                    this.moveTo(outsidePos, delta, () => {
+                        isRearDoorOpenTarget = false;
+                        scene.remove(this.mesh);
+                        deliveryWorker = null;
+                    });
+                }
+            }
+
+            moveTo(target, delta, onArrival) {
+                const dir = new THREE.Vector3().subVectors(target, this.mesh.position);
+                dir.y = 0;
+                const dist = dir.length();
+                if (dist < 0.12) {
+                    onArrival();
+                } else {
+                    dir.normalize();
+                    this.mesh.position.addScaledVector(dir, delta * 2.2);
+                    this.mesh.rotation.y = Math.atan2(dir.x, dir.z);
+                }
+            }
+        }
+
+        let deliveryWorker = null;
+        let deliveryTimer = 10.0;
+
+        const playerMesh = new THREE.Group();
+        const playerBodyMat = new THREE.MeshStandardMaterial({ color: 0x0284c7, roughness: 0.4 });
+        const playerHeadMat = new THREE.MeshStandardMaterial({ color: 0xfca5a5 });
+
+        const pBody = new THREE.Mesh(new THREE.CylinderGeometry(0.28, 0.22, 1.0, 12), playerBodyMat);
+        pBody.position.y = 0.9;
+        pBody.castShadow = true;
+
+        const pHead = new THREE.Mesh(new THREE.SphereGeometry(0.22, 12, 12), playerHeadMat);
+        pHead.position.y = 1.55;
+        pHead.castShadow = true;
+
+        playerMesh.add(pBody, pHead);
+        playerMesh.position.copy(GameState.playerPos);
+        scene.add(playerMesh);
+
+        const joystickContainer = document.getElementById('joystick-container');
+        const joystickThumb = document.getElementById('joystick-thumb');
+
+        let isJoystickActive = false;
+        let joystickVector = { x: 0, y: 0 };
+        let joystickCenter = { x: 0, y: 0 };
+
+        const keysPressed = {};
+        window.addEventListener('keydown', (e) => { keysPressed[e.code] = true; });
+        window.addEventListener('keyup', (e) => { keysPressed[e.code] = false; });
+
+        function handleJoystickStart(e) {
+            if (e.cancelable) e.preventDefault();
+            isJoystickActive = true;
+            const touch = e.touches ? e.touches[0] : e;
+            const rect = joystickContainer.getBoundingClientRect();
+            joystickCenter = {
+                x: rect.left + rect.width / 2,
+                y: rect.top + rect.height / 2
+            };
+            handleJoystickMove(e);
+        }
+
+        function handleJoystickMove(e) {
+            if (!isJoystickActive) return;
+            if (e.cancelable) e.preventDefault();
+            const touch = e.touches ? e.touches[0] : e;
+            const dx = touch.clientX - joystickCenter.x;
+            const dy = touch.clientY - joystickCenter.y;
+            const maxRadius = 45;
+            const distance = Math.min(Math.hypot(dx, dy), maxRadius);
+            const angle = Math.atan2(dy, dx);
+
+            const moveX = Math.cos(angle) * distance;
+            const moveY = Math.sin(angle) * distance;
+
+            joystickThumb.style.transform = `translate(${moveX}px, ${moveY}px) translate(-50%, -50%)`;
+            joystickVector = {
+                x: moveX / maxRadius,
+                y: moveY / maxRadius
+            };
+        }
+
+        function handleJoystickEnd() {
+            isJoystickActive = false;
+            joystickVector = { x: 0, y: 0 };
+            joystickThumb.style.transform = `translate(0px, 0px) translate(-50%, -50%)`;
+        }
+
+        joystickContainer.addEventListener('touchstart', handleJoystickStart, { passive: false });
+        window.addEventListener('touchmove', handleJoystickMove, { passive: false });
+        window.addEventListener('touchend', handleJoystickEnd);
+
+        let isMouseDown = false;
+        joystickContainer.addEventListener('mousedown', (e) => {
+            isMouseDown = true;
+            handleJoystickStart(e);
+        });
+        window.addEventListener('mousemove', (e) => {
+            if (isMouseDown) handleJoystickMove(e);
+        });
+        window.addEventListener('mouseup', () => {
+            if (isMouseDown) {
+                isMouseDown = false;
+                handleJoystickEnd();
+            }
+        });
+
+        function canMoveTo(nx, nz) {
+            if ((nx < -9.0 && (nz < 0.5 || nz > 1.9)) || nx < -10.5 || nx > 9.0 || nz < -4.9 || nz > 4.9) return false;
+            for (let c of colliders) {
+                if (nx > c.minX && nx < c.maxX && nz > c.minZ && nz < c.maxZ) {
+                    return false;
+                }
+            }
+            return true;
+        }
+
+        const moneyDisplay = document.getElementById('money-display');
+        const interactionCard = document.getElementById('interaction-card');
+        const interactionText = document.getElementById('interaction-text');
+        const interactionBtn = document.getElementById('interaction-btn');
+        const toastContainer = document.getElementById('toast-container');
+        const toastMessage = document.getElementById('toast-message');
+        const toastIcon = document.getElementById('toast-icon');
+
+        function updateHUD() {
+            moneyDisplay.innerText = `¥${GameState.money.toLocaleString()}`;
+        }
+
+        function showToast(msg, icon = '✨') {
+            toastMessage.innerText = msg;
+            toastIcon.innerText = icon;
+            toastContainer.style.opacity = '1';
+            toastContainer.style.transform = 'translateY(0px)';
+            setTimeout(() => {
+                toastContainer.style.opacity = '0';
+                toastContainer.style.transform = 'translateY(-100px)';
+            }, 2500);
+        }
+
+        let currentActivePedestal = null;
+
+        function checkProximityInteractions() {
+            let foundZone = null;
+            unlockZones.forEach(zone => {
+                if (zone.type === 'unlock' && zone.unlocked) return;
+                const dist = playerMesh.position.distanceTo(new THREE.Vector3(zone.x, 0, zone.z));
+                if (dist < 1.6) {
+                    foundZone = zone;
+                }
+            });
+
+            if (foundZone) {
+                currentActivePedestal = foundZone;
+                if (foundZone.type === 'action') {
+                    interactionText.innerText = `${foundZone.name} (ボーナス獲得)`;
+                } else {
+                    interactionText.innerText = `${foundZone.name} 解放 (¥${foundZone.cost})`;
+                }
+                interactionCard.classList.remove('hidden');
+            } else {
+                currentActivePedestal = null;
+                interactionCard.classList.add('hidden');
+            }
+        }
+
+        interactionBtn.addEventListener('click', () => {
+            if (!currentActivePedestal) return;
+            const zone = currentActivePedestal;
+
+            if (zone.type === 'action') {
+                const now = Date.now();
+                if (now - GameState.lastRestockTime < 8000) {
+                    showToast('在庫整理中... 少しお待ちください', '⏳');
+                    return;
+                }
+                GameState.lastRestockTime = now;
+                const bonus = 500;
+                GameState.money += bonus;
+                updateHUD();
+                AudioEngine.playCoinSound();
+                showToast(`在庫を整理しボーナス獲得! +¥${bonus}`, '📦');
+                return;
+            }
+
+            if (GameState.money >= zone.cost) {
+                GameState.money -= zone.cost;
+                zone.unlocked = true;
+                GameState.unlockedSections[zone.id] = true;
+
+                updateHUD();
+                renderUnlockPedestals();
+                populateShelf(zone.id, zone.id);
+
+                AudioEngine.playCoinSound();
+                showToast(`${zone.name} を解放しました！`, '🎉');
+                interactionCard.classList.add('hidden');
+            } else {
+                showToast('売上金が足りません！', '⚠️');
+            }
+        });
+
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+
+        const clock = new THREE.Clock();
+
+        function animate() {
+            requestAnimationFrame(animate);
+
+            const delta = Math.min(clock.getDelta(), 0.1);
+
+            let moveVx = joystickVector.x;
+            let moveVz = joystickVector.y;
+
+            let keyX = 0;
+            let keyZ = 0;
+            if (keysPressed['KeyA'] || keysPressed['ArrowLeft']) keyX -= 1;
+            if (keysPressed['KeyD'] || keysPressed['ArrowRight']) keyX += 1;
+            if (keysPressed['KeyW'] || keysPressed['ArrowUp']) keyZ -= 1;
+            if (keysPressed['KeyS'] || keysPressed['ArrowDown']) keyZ += 1;
+
+            if (keyX !== 0 || keyZ !== 0) {
+                const len = Math.hypot(keyX, keyZ);
+                moveVx = keyX / len;
+                moveVz = keyZ / len;
+            }
+
+            if (moveVx !== 0 || moveVz !== 0) {
+                const moveSpeed = 4.2 * delta;
+                const nextX = playerMesh.position.x + moveVx * moveSpeed;
+                const nextZ = playerMesh.position.z + moveVz * moveSpeed;
+
+                if (canMoveTo(nextX, playerMesh.position.z)) {
+                    playerMesh.position.x = nextX;
+                }
+                if (canMoveTo(playerMesh.position.x, nextZ)) {
+                    playerMesh.position.z = nextZ;
+                }
+
+                const angle = Math.atan2(moveVx, moveVz);
+                playerMesh.rotation.y = angle;
+            }
+
+            // Sliding Backroom Staff Door Proximity Check
+            const doorPassPos = new THREE.Vector3(-5.5, 0, 0.5);
+            const distToDoor = playerMesh.position.distanceTo(doorPassPos);
+            if (distToDoor < 2.0) {
+                if (!isDoorOpen) {
+                    isDoorOpen = true;
+                    AudioEngine.playSlideDoor();
+                }
+                doorMesh.position.z += ((-0.7) - doorMesh.position.z) * 0.12;
+            } else {
+                if (isDoorOpen) {
+                    isDoorOpen = false;
+                }
+                doorMesh.position.z += ((0.5) - doorMesh.position.z) * 0.12;
+            }
+
+            // Restroom Door Swing Proximity Check
+            const toiletDoorPos = new THREE.Vector3(-5.5, 0, -3.8);
+            const distToToiletDoor = playerMesh.position.distanceTo(toiletDoorPos);
+            const targetSwingAngle = (distToToiletDoor < 2.2) ? (Math.PI * 0.55) : 0;
+            
+            if (distToToiletDoor < 2.2 && !isToiletDoorOpen) {
+                isToiletDoorOpen = true;
+                AudioEngine.playSlideDoor();
+            } else if (distToToiletDoor >= 2.2 && isToiletDoorOpen) {
+                isToiletDoorOpen = false;
+            }
+            toiletDoorPivot.rotation.y += (targetSwingAngle - toiletDoorPivot.rotation.y) * 0.12;
+
+            // Functional Backroom Rear Door Open/Close Animation
+            const distToRearDoor = playerMesh.position.distanceTo(new THREE.Vector3(-9.22, 0, 1.2));
+            if (distToRearDoor < 1.8) {
+                isRearDoorOpenTarget = true;
+            } else if (!deliveryWorker) {
+                isRearDoorOpenTarget = false;
+            }
+
+            const targetRearSwing = isRearDoorOpenTarget ? (-Math.PI * 0.5) : 0;
+            rearDoorPivot.rotation.y += (targetRearSwing - rearDoorPivot.rotation.y) * 0.12;
+
+            // Restroom Internal Visibility & Mirror Reflection Loop
+            const isInRestroom = (playerMesh.position.x < -5.5 && playerMesh.position.z < -2.5);
+            const targetRestroomWallOpacity = isInRestroom ? 0.15 : 1.0;
+            restroomWallMat.opacity += (targetRestroomWallOpacity - restroomWallMat.opacity) * 0.1;
+            restroomWallMat.depthWrite = (restroomWallMat.opacity > 0.5);
+
+            const targetFrontWallOpacity = isInRestroom ? 0.05 : 0.28;
+            frontWallMat.opacity += (targetFrontWallOpacity - frontWallMat.opacity) * 0.1;
+
+            // Mirror Reflection Logic
+            const mirrorWallZ = -4.95;
+            const mirrorWallX = -6.2;
+            const distToWashbasinMirror = Math.hypot(playerMesh.position.x - mirrorWallX, playerMesh.position.z - mirrorWallZ);
+
+            if (distToWashbasinMirror < 2.5 && playerMesh.position.z > mirrorWallZ) {
+                reflectionPlayer.visible = true;
+                const reflectedZ = mirrorWallZ - (playerMesh.position.z - mirrorWallZ);
+                const relX = playerMesh.position.x - mirrorWallX;
+                reflectionPlayer.position.set(mirrorWallX + relX, playerMesh.position.y, reflectedZ);
+                reflectionPlayer.rotation.y = -playerMesh.rotation.y;
+            } else {
+                reflectionPlayer.visible = false;
+            }
+
+            // Camera Tracking
+            camera.position.x = playerMesh.position.x;
+            camera.position.y = playerMesh.position.y + 6.8;
+            camera.position.z = playerMesh.position.z + 5.2;
+            camera.lookAt(playerMesh.position.x, playerMesh.position.y + 0.8, playerMesh.position.z);
+
+            // Customer AI Update
+            customerSpawnTimer -= delta;
+            if (customerSpawnTimer <= 0 && customers.length < 4) {
+                customers.push(new Customer());
+                AudioEngine.playDoorChime();
+                customerSpawnTimer = 6.0 + Math.random() * 4.0;
+            }
+            customers.forEach(c => c.update(delta));
+
+            // Delivery Worker CPU Spawner
+            deliveryTimer -= delta;
+            if (deliveryTimer <= 0 && !deliveryWorker) {
+                deliveryWorker = new DeliveryWorker();
+                deliveryTimer = 18.0 + Math.random() * 8.0;
+            }
+            if (deliveryWorker) {
+                deliveryWorker.update(delta);
+            }
+
+            // Interaction Checks
+            checkProximityInteractions();
+
+            // Render
+            renderer.render(scene, camera);
+        }
+
+        let isGameRunning = false;
+        function startGame() {
+            if (isGameRunning) return;
+            isGameRunning = true;
+            animate();
+        }
+
+        if (document.readyState === 'complete' || document.readyState === 'interactive') {
+            startGame();
+        } else {
+            window.addEventListener('DOMContentLoaded', startGame);
+        }
+    </script>
+</body>
+</html>
