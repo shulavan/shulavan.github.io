@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<title>江戸川区新庁舎 3D EXPLORER</title>
+<style>
+:root{--glass:rgba(8,18,30,.68);--line:rgba(255,255,255,.18);--accent:#70c8ff;--gold:#ffd66d}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#07111c;font-family:system-ui,-apple-system,BlinkMacSystemFont,"Noto Sans JP",sans-serif;color:#fff;touch-action:none}
+#app{position:fixed;inset:0}
+canvas{display:block;width:100%;height:100%}
+#hud{position:fixed;inset:0;pointer-events:none}
+.glass{background:linear-gradient(180deg,rgba(9,17,27,.78),rgba(9,17,27,.54));border:1px solid var(--line);backdrop-filter:blur(12px);box-shadow:0 10px 36px rgba(0,0,0,.26)}
+#topbar{position:absolute;left:12px;right:12px;top:10px;display:flex;gap:8px;align-items:center;justify-content:space-between;padding:9px 11px;border-radius:14px}
+#title{font-weight:800;font-size:13px;letter-spacing:.04em;white-space:nowrap}
+#floorBadge{font-size:12px;font-weight:700;color:#d9f2ff;background:rgba(112,200,255,.13);border:1px solid rgba(112,200,255,.25);padding:6px 9px;border-radius:999px;white-space:nowrap}
+#mission{position:absolute;top:58px;left:12px;right:12px;padding:9px 11px;border-radius:13px;font-size:11px;line-height:1.4;color:#e8f7ff}
+#mission b{color:var(--gold)}
+#hint{position:absolute;left:12px;right:12px;bottom:110px;text-align:center;font-size:11px;color:#cfe4f1;text-shadow:0 2px 8px #000}
+#cross{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:16px;height:16px;opacity:.55}
+#cross:before,#cross:after{content:"";position:absolute;background:#fff;border-radius:2px;box-shadow:0 0 5px rgba(255,255,255,.55)}
+#cross:before{left:7px;top:1px;width:2px;height:14px}#cross:after{left:1px;top:7px;width:14px;height:2px}
+#joystick{position:absolute;left:18px;bottom:20px;width:122px;height:122px;border-radius:50%;background:radial-gradient(circle at 50% 50%,rgba(255,255,255,.12),rgba(255,255,255,.04) 55%,rgba(255,255,255,.02));border:1px solid rgba(255,255,255,.16);pointer-events:auto;box-shadow:0 12px 35px rgba(0,0,0,.25)}
+#joyKnob{position:absolute;width:58px;height:58px;left:32px;top:32px;border-radius:50%;background:radial-gradient(circle at 34% 30%,#dff7ff,#78b8d5 40%,#3c677c 100%);border:2px solid rgba(255,255,255,.45);box-shadow:0 8px 18px rgba(0,0,0,.28)}
+#actions{position:absolute;right:15px;bottom:23px;display:flex;flex-direction:column;align-items:flex-end;gap:9px;pointer-events:auto}
+.actionBtn{width:56px;height:56px;border-radius:50%;border:1px solid rgba(255,255,255,.24);background:rgba(10,19,30,.58);color:#fff;font-size:19px;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(10px);box-shadow:0 8px 28px rgba(0,0,0,.28)}
+.actionBtn:active{transform:scale(.95)}
+#mini{position:absolute;right:12px;top:108px;width:122px;padding:8px 9px;border-radius:12px;font-size:10px;line-height:1.35;color:#d8edf7}
+#interact{position:absolute;left:50%;bottom:165px;transform:translateX(-50%);padding:9px 13px;border-radius:999px;font-size:12px;opacity:0;transition:opacity .18s;background:rgba(8,18,30,.78);border:1px solid rgba(255,255,255,.18);pointer-events:none;white-space:nowrap}
+#floorPanel{position:absolute;left:50%;bottom:90px;transform:translateX(-50%);display:none;width:min(310px,92vw);padding:12px;border-radius:16px;pointer-events:auto}
+#floorPanel.show{display:block}
+#floorPanel h3{margin:0 0 9px;font-size:12px}.floorGrid{display:grid;grid-template-columns:repeat(7,1fr);gap:5px}.floorBtn{border:1px solid rgba(255,255,255,.16);background:rgba(255,255,255,.05);color:#fff;border-radius:8px;padding:7px 0;font-size:11px}.floorBtn:active{background:rgba(112,200,255,.22)}
+#centerToast{position:absolute;left:50%;top:18%;transform:translateX(-50%);padding:10px 14px;border-radius:14px;font-size:12px;opacity:0;transition:opacity .2s;max-width:85%;text-align:center}
+#loading{position:absolute;inset:0;background:radial-gradient(circle at 50% 20%,#20394e,#07111c 72%);display:flex;align-items:center;justify-content:center;flex-direction:column;gap:13px;z-index:30}.loadTitle{font-size:24px;font-weight:900;letter-spacing:.05em}.loadSub{font-size:12px;color:#bcd1df}.bar{width:230px;height:6px;border-radius:10px;background:rgba(255,255,255,.12);overflow:hidden}.bar i{display:block;height:100%;width:0;background:linear-gradient(90deg,#70c8ff,#d5f4ff);border-radius:10px;transition:width .1s}
+#mapCard{position:absolute;inset:50px 12px 160px;display:none;padding:12px;border-radius:18px;pointer-events:auto;overflow:auto}.mapGrid{display:grid;grid-template-columns:repeat(5,1fr);gap:7px}.mapNode{padding:10px 6px;text-align:center;font-size:10px;border-radius:10px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1)}.mapNode b{display:block;font-size:12px;color:#bfeaff;margin-bottom:2px}.mapNode.current{border-color:rgba(112,200,255,.7);background:rgba(112,200,255,.12)}
+#rotateTip{display:none;position:absolute;left:50%;top:40%;transform:translate(-50%,-50%);text-align:center;padding:14px 18px;border-radius:14px;font-size:12px;background:rgba(8,18,30,.82);border:1px solid rgba(255,255,255,.18)}
+@media (orientation:landscape){#rotateTip{display:none}}
+</style>
+</head>
+<body>
+<div id="app"></div>
+<div id="hud">
+  <div id="topbar" class="glass"><div id="title">江戸川区新庁舎 3D EXPLORER</div><div id="floorBadge">1F</div></div>
+  <div id="mission" class="glass">🎯 <b>ゴール：区長室</b>　庁舎の内部を探検し、11Fの特別職エリアにある区長室を目指そう。</div>
+  <div id="mini" class="glass">● 赤：受付・案内<br>● 青：エレベーター<br>● 緑：植物・光庭<br>★：重要スポット</div>
+  <div id="cross"></div>
+  <div id="hint">左下のジョイスティックで移動　／　画面ドラッグで視点　／　長押しでズーム　／　青いEVボタンをタップ</div>
+  <div id="interact"></div>
+  <div id="centerToast" class="glass"></div>
+  <div id="joystick"><div id="joyKnob"></div></div>
+  <div id="actions"><button id="mapBtn" class="actionBtn">🧭</button><button id="zoomBtn" class="actionBtn">🔍</button><button id="menuBtn" class="actionBtn">☰</button></div>
+  <div id="floorPanel" class="glass"><h3>エレベーター：行先階を選択</h3><div class="floorGrid" id="floorGrid"></div></div>
+  <div id="mapCard" class="glass"><h3 style="margin:0 0 8px;font-size:13px">フロア探索マップ</h3><div class="mapGrid" id="mapGrid"></div></div>
+</div>
+<div id="loading"><div class="loadTitle">江戸川区新庁舎</div><div class="loadSub">実施設計資料をもとに、21階建ての探索空間を構築しています</div><div class="bar"><i id="loadBar"></i></div><div class="loadSub" id="loadText">照明・素材・アトリウムを準備中…</div></div>
+
+<script type="module">
+import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js';
+import {RoomEnvironment} from 'https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/environments/RoomEnvironment.js';
+
+const $=s=>document.querySelector(s);
+const app=$('#app');
+const renderer=new THREE.WebGLRenderer({antialias:true,powerPreference:'high-performance'});
+renderer.setPixelRatio(Math.min(devicePixelRatio,1.7));renderer.setSize(innerWidth,innerHeight);renderer.shadowMap.enabled=true;renderer.shadowMap.type=THREE.PCFSoftShadowMap;renderer.outputColorSpace=THREE.SRGBColorSpace;renderer.toneMapping=THREE.ACESFilmicToneMapping;renderer.toneMappingExposure=1.08;app.appendChild(renderer.domElement);
+const scene=new THREE.Scene();scene.background=new THREE.Color(0x091522);scene.fog=new THREE.Fog(0x091522,18,120);
+const camera=new THREE.PerspectiveCamera(73,innerWidth/innerHeight,.05,180);camera.rotation.order='YXZ';
+const pmrem=new THREE.PMREMGenerator(renderer);scene.environment=pmrem.fromScene(new RoomEnvironment(renderer),0.08).texture;
+
+const clock=new THREE.Clock();
+const world=new THREE.Group();scene.add(world);
+const staticColliders=[];const stairs=[];const doors=[];const interactables=[];const people=[];const elevators=[];
+const mat={
+ concrete:new THREE.MeshStandardMaterial({color:0x9eaaa9,roughness:.82,metalness:.04}),
+ white:new THREE.MeshStandardMaterial({color:0xe7ecea,roughness:.72}),
+ wall:new THREE.MeshStandardMaterial({color:0xdfe5e4,roughness:.8}),
+ glass:new THREE.MeshPhysicalMaterial({color:0x8ac8df,roughness:.08,metalness:.05,transmission:.62,transparent:true,opacity:.42}),
+ darkGlass:new THREE.MeshPhysicalMaterial({color:0x143044,roughness:.08,metalness:.45,transmission:.18,transparent:true,opacity:.82}),
+ steel:new THREE.MeshStandardMaterial({color:0x6b7680,roughness:.35,metalness:.8}),
+ wood:new THREE.MeshStandardMaterial({color:0x9b6a44,roughness:.58}),
+ wood2:new THREE.MeshStandardMaterial({color:0x6f4a31,roughness:.68}),
+ green:new THREE.MeshStandardMaterial({color:0x426c44,roughness:.9}),
+ leaf:new THREE.MeshStandardMaterial({color:0x5e8a59,roughness:.86}),
+ blue:new THREE.MeshStandardMaterial({color:0x2f88b7,roughness:.34,metalness:.28,emissive:0x0c2130,emissiveIntensity:.2}),
+ screen:new THREE.MeshStandardMaterial({color:0x13253d,roughness:.25,metalness:.25,emissive:0x0c4d7b,emissiveIntensity:1.15}),
+ red:new THREE.MeshStandardMaterial({color:0x9d3b3b,roughness:.42}),
+ floor:new THREE.MeshStandardMaterial({color:0xbcc2c2,roughness:.72}),
+ tile:new THREE.MeshStandardMaterial({color:0xd8dddc,roughness:.58}),
+ stair:new THREE.MeshStandardMaterial({color:0x7d8586,roughness:.7}),
+ gold:new THREE.MeshStandardMaterial({color:0xc7a85a,roughness:.3,metalness:.55}),
+ black:new THREE.MeshStandardMaterial({color:0x161c20,roughness:.62}),
+ skin:new THREE.MeshStandardMaterial({color:0xd0a483,roughness:.86})
+};
+const W=36,D=44,LOWW=52,LOWD=48,H=4.1;
+
+function box(name,x,y,z,sx,sy,sz,material,collide=true,parent=world){const g=new THREE.BoxGeometry(sx,sy,sz);const m=material||mat.white;const o=new THREE.Mesh(g,m);o.name=name;o.position.set(x,y,z);o.castShadow=sy>0.3;o.receiveShadow=true;parent.add(o);if(collide)staticColliders.push({min:new THREE.Vector3(x-sx/2,y-sy/2,z-sz/2),max:new THREE.Vector3(x+sx/2,y+sy/2,z+sz/2),obj:o});return o}
+function cyl(name,x,y,z,r,h,material,parent=world,seg=16){const o=new THREE.Mesh(new THREE.CylinderGeometry(r,r,h,seg),material);o.name=name;o.position.set(x,y,z);o.castShadow=true;o.receiveShadow=true;parent.add(o);return o}
+function roundedBox(x,y,z,sx,sy,sz,material,r=.08){const shape=new THREE.Shape();const w=sx,h=sz;const q=r;shape.moveTo(-w/2+q,-h/2);shape.lineTo(w/2-q,-h/2);shape.quadraticCurveTo(w/2,-h/2,w/2,-h/2+q);shape.lineTo(w/2,h/2-q);shape.quadraticCurveTo(w/2,h/2,w/2-q,h/2);shape.lineTo(-w/2+q,h/2);shape.quadraticCurveTo(-w/2,h/2,-w/2,h/2-q);shape.lineTo(-w/2,-h/2+q);shape.quadraticCurveTo(-w/2,-h/2,-w/2+q,-h/2);const geo=new THREE.ExtrudeGeometry(shape,{depth:sy,bevelEnabled:true,bevelSegments:2,bevelSize:r,bevelThickness:r});const o=new THREE.Mesh(geo,material);o.rotation.x=-Math.PI/2;o.position.set(x,y-sy/2,z);o.castShadow=true;o.receiveShadow=true;world.add(o);return o}
+
+function addFloorSlab(floor,w=W,d=D){const y=(floor-1)*H;box('floor',0,y-0.16,0,w,.32,d,mat.floor,false);box('ceiling',0,y+H-.14,0,w,.28,d,mat.white,false)}
+function addWallsForFloor(floor){const y=(floor-1)*H+H/2;const w=floor<=4?LOWW:W,d=floor<=4?LOWD:D;
+  box('northWall',0,y,-d/2,w,.3,.3,mat.wall,true);box('southWall',0,y,d/2,w,.3,.3,mat.wall,true);box('westWall',-w/2,y,0,.3,H,d,mat.wall,true);box('eastWall',w/2,y,0,.3,H,d,mat.wall,true);
+}
+function addRoom(x,z,sx,sz,floor,label,opts={}){const y=(floor-1)*H;const h=H-0.24;const depth=.18;
+  if(opts.closed!==false){
+    // All rooms have a real doorway. The front wall is split around a 1.7m opening.
+    const opening=1.7; const frontZ=z-sz/2; const side=(sx-opening)/2;
+    if(side>0.2){box(label+' front L',x-(opening+side)/2,y+h/2,frontZ,side,h,depth,mat.wall,true);box(label+' front R',x+(opening+side)/2,y+h/2,frontZ,side,h,depth,mat.wall,true)}
+    box(label+' wall B',x,y+h/2,z+sz/2,sx,h,depth,mat.wall,true);box(label+' wall L',x-sx/2,y+h/2,z,depth,h,sz,mat.wall,true);box(label+' wall R',x+sx/2,y+h/2,z,depth,h,sz,mat.wall,true);
+    const door=box(label+' door',x,y+1.1,frontZ+.04,opening,2.2,.10,mat.darkGlass,true);
+    const collider=staticColliders[staticColliders.length-1]; collider.kind='door'; collider.blocked=true;
+    const doorState={open:false,door,collider,baseX:x,baseZ:frontZ+.04};
+    interactables.push({type:'door',object:door,label,position:new THREE.Vector3(x,y+1.05,frontZ-.6),action:()=>{doorState.open=!doorState.open;collider.blocked=!doorState.open;doorState.door.visible=!doorState.open;toast(label+(doorState.open?'：開きました':'：閉じました'));}});
+  }
+  const sign=cyl('roomSign',x,y+2.15,z-sz/2-.09,.06,.22,mat.red);sign.rotation.x=Math.PI/2;interactables.push({type:'room',object:sign,label,position:new THREE.Vector3(x,y+1.2,z-sz/2-.9),action:()=>toast(label+' を探索できます')});
+}
+
+function addCeilingLights(floor,positions){const y=(floor-1)*H+H-.34;for(const [x,z] of positions){const light= new THREE.RectAreaLight(0xffffff,1.8,3.2,0.4);light.position.set(x,y,z);light.rotation.x=-Math.PI/2;world.add(light);box('light',x,y-.02,z,3.0,.04,.34,new THREE.MeshStandardMaterial({color:0xffffff,emissive:0xffffff,emissiveIntensity:2.2}),false)}}
+
+// exterior massing / podium and tower, built from the implementation design: 21F, approx. 99m, lower green/horizontal podium, vertical upper volume
+function buildMassing(){
+  // hidden exterior shell just beyond playable skin, visible through atrium glazing only when appropriate
+  box('podium-core',0,1.9,0,LOWW,3.8,LOWD,mat.concrete,false);
+  // upper tower with clipped-corner feel
+  const towerGroup=new THREE.Group();towerGroup.name='vertical-tower';world.add(towerGroup);
+  const levels=21;
+  for(let f=1;f<=levels;f++) addFloorSlab(f, f<=4?LOWW:W, f<=4?LOWD:D);
+  // vertical fins inspired by exterior design, but kept outside playable area
+  for(let i=-5;i<=5;i++){const x=i*3.0;box('facadeFin',x,43.0,-22.9,.22,82,.22,mat.steel,false,towerGroup);box('facadeFin',x,43.0,22.9,.22,82,.22,mat.steel,false,towerGroup)}
+}
+
+function buildPodiumAndAtrium(){
+  // 1F main entrance hall, atrium, community hall, multi-purpose areas
+  const y=0;
+  // floor 1 shell is opened at south face, entrance side, but inaccessible exterior via invisible boundary beyond glazing
+  box('1F left wing wall',-24,2.0,0,5.2,4,38,mat.wall,true);
+  box('1F right wing wall',24,2.0,0,5.2,4,38,mat.wall,true);
+  // atrium boundaries
+  box('atrium west glass',-12,2,0,.16,3.9,39,mat.glass,true);box('atrium east glass',12,2,0,.16,3.9,39,mat.glass,true);
+  // main glass curtainwall at entrance
+  box('entry glass',0,2,-21.7,22,3.7,.18,mat.glass,true);
+  // reception
+  box('reception desk',0,1.15,-16,8,.8,1.5,mat.wood2,false);
+  box('reception counter',0,1.65,-15.25,8,.12,.35,mat.gold,false);
+  makeReceptionist(0,1,-14.65,'受付');
+  // multi-purpose hall / community space
+  addRoom(-18,12,9,16,1,'多目的スペースA');
+  addRoom(18,12,9,16,1,'多目的スペースB');
+  addRoom(-18,-10,9,14,1,'防災センター');
+  // central lounge / light garden below atrium
+  makeLightGarden(0,4,4.6);
+  makeSign(0,3.0,-18,'総合案内 / ENTRANCE HALL');
+  // cafe/convenience tenant zone
+  addRoom(18,-10,9,11,1,'売店・飲食コーナー');
+  // lighting
+  addCeilingLights(1,[[-18,-6],[-18,10],[18,-8],[18,8],[0,-12],[0,13]]);
+  makeDigitalSign(0,2.15,-12,'江戸川区へようこそ','WELCOME TO EDOGAWA');
+}
+function makeLightGarden(x,z,r){const y=.2;const basin=cyl('光庭水景',x,y,z,r,.18,new THREE.MeshStandardMaterial({color:0x5fa6b8,roughness:.15,metalness:.05}));cyl('光庭 island',x,y+.22,z,r*.62,.28,mat.concrete);cyl('シンボルツリー trunk',x,y+1.9,z,.34,3.3,mat.wood2);for(let i=0;i<18;i++){const a=i*Math.PI*2/18;const rr=.75+.22*Math.sin(i*1.7);const leaf=cyl('leaf',x+Math.cos(a)*rr,y+3.5+Math.sin(i)*.13,z+Math.sin(a)*rr,.38,.45,mat.leaf);leaf.scale.z=.65} }
+function makeSign(x,y,z,a,b){const plate=box('sign',x,y,z,6,.55,.16,mat.darkGlass,false);const c=document.createElement('canvas');c.width=900;c.height=180;const ctx=c.getContext('2d');ctx.fillStyle='#173245';ctx.fillRect(0,0,900,180);ctx.fillStyle='#eaf6ff';ctx.font='bold 48px sans-serif';ctx.textAlign='center';ctx.fillText(a,450,72);ctx.fillStyle='#8dd6ff';ctx.font='bold 30px sans-serif';ctx.fillText(b,450,126);plate.material=new THREE.MeshStandardMaterial({map:new THREE.CanvasTexture(c),roughness:.5,emissive:0x132b39,emissiveIntensity:.7});return plate}
+function makeDigitalSign(x,y,z,jp,en){const p=makeSign(x,y,z,jp,en);p.scale.set(1.4,1.0,1);return p}
+
+function buildLevels(){
+  // 2F: citizen services, atrium balcony, terrace
+  const specs=[
+    {f:2,rooms:[[-14,10,8,16,'区民サービス窓口'],[15,11,8,15,'相談フロア'],[-15,-10,8,13,'証明・申請窓口'],[15,-10,8,13,'多目的スペース']],lights:[[-15,-8],[-15,9],[15,-8],[15,9]]},
+    {f:3,rooms:[[-15,10,8,15,'保健所受付'],[15,10,8,15,'健康相談'],[-15,-10,8,13,'子育て支援'],[15,-10,8,13,'市民活動スペース']],lights:[[-15,-8],[-15,9],[15,-8],[15,9]]},
+    {f:4,rooms:[[-15,10,8,15,'保健所機能'],[15,10,8,15,'健診・相談'],[-15,-10,8,13,'保健所会議室'],[15,-10,8,13,'多目的スペース']],lights:[[-15,-8],[-15,9],[15,-8],[15,9]]}
+  ];
+  for(const s of specs){for(const r of s.rooms)addRoom(r[0],r[1],r[2],r[3],s.f,r[4]);addCeilingLights(s.f,s.lights);makeBalcony(s.f)}
+  // 5-10, 12-19: flexible office floors with 7.2m modules, core-centered open plan
+  for(let f=5;f<=19;f++) if(f!==11) buildOfficeFloor(f);
+  // 11F: disaster response + ward executive suite, goal lives here
+  buildDisasterFloor(11);
+  // 20-21 assembly zone
+  buildAssemblyFloor(20);buildAssemblyFloor(21);
+  // rooftop helipad and mechanical rooftop equipment, accessible only as optional visual via elevator locked
+  makeHelipad(21);
+}
+function makeBalcony(f){const y=(f-1)*H+1.5;box('balcony rail',0,y,-22,22,.9,.18,mat.glass,false);for(let x=-9;x<=9;x+=3)box('balcony planter',x,y-.35,-21.6,2.1,.34,.5,mat.wood2,false),cyl('balcony plant',x,y+.2,-21.6,.2,.6,mat.leaf,world)}
+function buildOfficeFloor(f){const y=(f-1)*H;for(const x of [-13,-6,6,13]){box('office pod wall',x,y+H/2,0,5.9,H-.25,.18,mat.wall,true)};for(let z of [-15,15])box('office boundary',0,y+H/2,z,34,H-.25,.18,mat.wall,true);
+  // core enclosure and equipment
+  box('core west',-4.8,y+H/2,0,.18,H-0.25,18,mat.wall,true);box('core east',4.8,y+H/2,0,.18,H-0.25,18,mat.wall,true);
+  for(let r=0;r<14;r++){const x=(r%7)*2.9-8.7;const z=(Math.floor(r/7))*8-4;makeDesk(x,y+1.05,z,f%2?0x566b76:0x3e5a67);makeOfficePerson(x+.55,y+1.05,z+.35,f+r)}
+  makeCopyZone(-13,y+0.9,-15);addCeilingLights(f,[[-12,-12],[-12,0],[-12,12],[12,-12],[12,0],[12,12]]);
+}
+function makeDesk(x,y,z,color){const m=new THREE.MeshStandardMaterial({color,roughness:.56});box('desk',x,y,z,2.1,.13,1.0,m,false);box('desk leg',x-.82,y-.45,z,.12,.9,.12,mat.steel,false);box('monitor',x,y+.34,z-.25,.7,.52,.08,mat.screen,false)}
+function makeOfficePerson(x,y,z,seed){const g=new THREE.Group();g.position.set(x,y-.05,z);const shirt=new THREE.MeshStandardMaterial({color:[0x334f63,0x8e5f55,0x516b4a,0x684d6f][seed%4],roughness:.7});cyl('body',0,.7,0,.28,1.0,shirt,g);cyl('head',0,1.38,0,.19,.32,mat.skin,g);cyl('hair',0,1.55,0,.205,.18,mat.black,g);g.rotation.y=(seed%7)*.7;world.add(g);people.push({g,home:g.position.clone(),t:Math.random()*10,speed:.12+.05*Math.random(),wander:.9});}
+function makeCopyZone(x,y,z){box('printer',x,y+.65,z,1.2,1.3,.8,mat.white,false);box('printer tray',x,y+.35,z-.4,.9,.08,.5,mat.darkGlass,false)}
+function buildDisasterFloor(f){const y=(f-1)*H;addRoom(-12,7,11,19,f,'災害対策本部');addRoom(13,7,10,19,f,'危機管理・情報統括');addRoom(-12,-12,11,9,f,'区長室', {closed:true});addRoom(13,-12,10,9,f,'特別職関連諸室');
+  // sliding wall feeling
+  for(let x=-2.6;x<=2.6;x+=1.3)box('monitor wall',x,y+2.0,-2,.16,2.3,.65,mat.screen,false);
+  box('chief desk',-12,y+1.0,-12,3.2,.12,1.4,mat.wood2,false);box('chief chair',-12,y+.65,-13,.7,1.0,.7,mat.red,false);
+  makeDigitalSign(-12,y+2.0,-7.55,'区長室 / GOAL','WARD MAYOR OFFICE');
+  addCeilingLights(f,[[-13,-12],[-13,7],[13,-12],[13,7]]);
+}
+function buildAssemblyFloor(f){const y=(f-1)*H;box('assembly boundary',0,y+H/2,-17,34,H-.25,.18,mat.wall,true);box('assembly boundary2',0,y+H/2,17,34,H-.25,.18,mat.wall,true);box('gallery west',-16,y+H/2,0,.18,H-0.25,32,mat.wall,true);box('gallery east',16,y+H/2,0,.18,H-0.25,32,mat.wall,true);if(f===21){box('議場 floor',0,y+.35,5,13,.35,13,mat.wood2,true);for(let row=0;row<4;row++)for(let c=0;c<7;c++){const x=(c-3)*1.55;const z=1+row*2.0;box('議員机',x,y+1.0,z,1.1,.08,.52,mat.wood,false);}}
+ else {box('committee',-8,y+1.0,-5,10,.15,2.8,mat.wood2,false);box('傍聴ロビー',8,y+.2,-5,10,.2,7,mat.wood,false);}
+ addCeilingLights(f,[[-10,-10],[0,-10],[10,-10],[-10,10],[0,10],[10,10]]);makeDigitalSign(0,y+2.05,-16.75,f===21?'江戸川区議会 議場':'議会フロア','ASSEMBLY FLOOR');}
+function makeHelipad(f){const y=(f-1)*H+0.05;const h=new THREE.Mesh(new THREE.CylinderGeometry(10,10,.2,64),new THREE.MeshStandardMaterial({color:0x2f3438,roughness:.9}));h.position.set(0,y,0);world.add(h);const Hmat=new THREE.MeshBasicMaterial({color:0xffe5a0});const t=new THREE.Mesh(new THREE.BoxGeometry(5,.08,.5),Hmat);t.position.set(0,y+.12,0);world.add(t);box('helipad mark',0,y+.14,0,.5,.1,5,Hmat,false);cyl('rooftopBeacon',9,y+1.3,7,.12,2,mat.red,false);}
+
+function addStairBetween(f){const y0=(f-1)*H;const group=new THREE.Group();group.name='stairs-'+f;world.add(group);const x=15.0,z=-1;const steps=20;for(let i=0;i<steps;i++){const t=i/(steps-1);const sy=.2;const yy=y0+H*t+.1;const zz=z-5+10*t;const s=box('step',x,yy,zz,3,.2,.55,mat.stair,false,group);s.receiveShadow=true;}stairs.push({f,x,z0:z-5,z1:z+5,y0,y1:y0+H});box('stair rail',x-1.2,y0+2.0,z,0.12,H*.7,10,mat.steel,false,group);}
+function addEscalator(){const x=-13;const z=-8;for(let f=1;f<4;f++){const y0=(f-1)*H;const g=new THREE.Group();world.add(g);for(let i=0;i<18;i++){const t=i/17;const step=box('escalator step',x,y0+H*t+.2,z-5+8*t,2.8,.16,.38,mat.steel,false,g);step.rotation.x=-Math.atan2(H,8)};box('escalator side',x-1.55,y0+H/2,z,0.12,H,10,mat.darkGlass,false,g);box('escalator side',x+1.55,y0+H/2,z,0.12,H,10,mat.darkGlass,false,g)}}
+
+function buildElevatorCore(){const shaftW=9,shaftD=11;for(let f=1;f<=21;f++){const y=(f-1)*H;addElevatorLobby(f,y);}
+  const cabGroup=new THREE.Group();cabGroup.name='ELEVATOR-CAB';world.add(cabGroup);const y=1.55;box('cab floor',0,y-1.3,0,3.2,.1,3.2,mat.wood,false,cabGroup);box('cab back',0,y+.2,1.55,3.2,3.5,.08,mat.darkGlass,false,cabGroup);box('cab left',-1.55,y+.2,0,.08,3.5,3.2,mat.darkGlass,false,cabGroup);box('cab right',1.55,y+.2,0,.08,3.5,3.2,mat.darkGlass,false,cabGroup);for(let i=0;i<3;i++)box('cab lamp',-1+i,3.05,0,0.65,.05,2.4,new THREE.MeshStandardMaterial({color:0xffffff,emissive:0xffffff,emissiveIntensity:2.4}),false,cabGroup);cabGroup.position.set(0,1.55,-.1);elevators.push({group:cabGroup,floor:1,target:1,moving:false,progress:0});
+}
+function addElevatorLobby(f,y){const panel=box('EV panel',-5.45,y+1.65,-5.7,.08,1.7,.45,mat.darkGlass,false);for(let i=1;i<=21;i++){const py=y+1.83+((i-1)%7)*.19;const p=box('EV button '+i,-5.5,py,-5.44,.03,.12,.12,mat.blue,false);p.userData.floor=i;p.userData.type='evbutton';interactables.push({type:'elevator',object:p,label:'エレベーター '+i+'F',position:new THREE.Vector3(-5.55,y+1.3,-5),action:()=>chooseFloor(i)});}
+  makeSign(0,y+2.4,-5.9,'エレベーターホール',String(f).padStart(2,'0')+'F');
+}
+
+function makeReceptionist(x,y,z,label){const g=new THREE.Group();g.position.set(x,y,z);cyl('skirt',0,.5,0,.32,.8,new THREE.MeshStandardMaterial({color:0x324a69,roughness:.72}),g);cyl('upper',0,1.02,0,.29,.42,new THREE.MeshStandardMaterial({color:0xf0f4f6,roughness:.7}),g);cyl('head',0,1.47,0,.19,.32,mat.skin,g);cyl('hair',0,1.65,0,.23,.2,mat.black,g);world.add(g);people.push({g,home:g.position.clone(),t:0,speed:.08,wander:.5,reception:true});}
+function spawnVisitors(){const arche=[['来庁者',0x375a7a],['高齢者',0x7b5c43],['親子',0x6a7a4e],['職員',0x4d5575],['案内スタッフ',0x6c3c53],['清掃スタッフ',0x52625a]];for(let i=0;i<22;i++){const [label,col]=arche[i%arche.length];const f=1+Math.floor(Math.random()*5);const y=(f-1)*H;const g=new THREE.Group();g.position.set((Math.random()-.5)*24,y-.05,-12+Math.random()*28);cyl('body',0,.62,0,.28,1.0,new THREE.MeshStandardMaterial({color:col,roughness:.76}),g);cyl('head',0,1.34,0,.19,.3,mat.skin,g);cyl('hair',0,1.5,0,.21,.2,new THREE.MeshStandardMaterial({color:i%3?0x20252a:0x5b3a27,roughness:.8}),g);if(label==='親子'){const c=g.clone();c.scale.set(.68,.68,.68);c.position.x=.65;g.add(c)}world.add(g);people.push({g,home:g.position.clone(),t:Math.random()*8,speed:.1+.08*Math.random(),wander:1.8,label});}}
+
+function buildWindowsAndPlants(){for(let f=1;f<=4;f++){const y=(f-1)*H+1.65;for(let x=-10;x<=10;x+=2.5){box('window',x,y,-21.48,1.9,3.1,.06,mat.glass,false)}}for(let i=0;i<18;i++){const f=1+Math.floor(Math.random()*4), y=(f-1)*H;const x=(i%6)*3.4-8.5,z=(Math.floor(i/6))*4-5;cyl('planter',x,y+.32,z,.4,.6,mat.wood2,false);for(let j=0;j<4;j++){const leaf=cyl('plant',x+(j-.5)*.18,y+1.2,z+(j%2-.5)*.18,.12,.7,mat.leaf,false);leaf.rotation.z=(j-1.5)*.25}}}
+
+function makeRealityDetails(){
+  // tactile materials, seating, service counters, fire cabinets, trash sorting, tactile paving
+  for(let f=1;f<=4;f++){const y=(f-1)*H;for(let z=-18;z<=18;z+=6){for(let x=-9;x<=9;x+=3){box('tactile',x,y+.02,z,.72,.025,.18,new THREE.MeshStandardMaterial({color:0xd3bd62,roughness:.8}),false)}}}
+  for(let f=1;f<=4;f++){const y=(f-1)*H;for(const x of [-19,19]){box('bench',x,y+.55,-2,3.1,.45,.62,mat.wood,false);box('benchBack',x,y+1.05,-2.25,3.1,.85,.12,mat.wood2,false)}}
+}
+
+function setupLighting(){const hemi=new THREE.HemisphereLight(0xb8dcf4,0x253026,1.5);scene.add(hemi);const sun=new THREE.DirectionalLight(0xffffff,2.3);sun.position.set(-35,55,-45);sun.castShadow=true;sun.shadow.mapSize.set(2048,2048);sun.shadow.camera.left=-55;sun.shadow.camera.right=55;sun.shadow.camera.top=70;sun.shadow.camera.bottom=-70;world.add(sun);const warm=new THREE.PointLight(0xffcf9f,0.7,30);warm.position.set(0,3,-15);world.add(warm)}
+
+// collision and player
+const player={pos:new THREE.Vector3(0,1.7,-18.5),yaw:0,pitch:0,vel:new THREE.Vector3(),speed:3.6,floor:1,zoom:0,targetZoom:0};camera.position.copy(player.pos);camera.rotation.set(0,0,0);
+function floorFromY(y){return Math.max(1,Math.min(21,Math.round(y/H)+1))}
+function aabbHit(p,r,box){return p.x>box.min.x-r&&p.x<box.max.x+r&&p.z>box.min.z-r&&p.z<box.max.z+r}
+function blocked(next){const r=.42;for(const c of staticColliders){if(c.blocked===false)continue;if(aabbHit(next,r,c))return true}return false}
+function inStairRamp(p){for(const s of stairs){if(Math.abs(p.x-s.x)<2.1&&p.z>s.z0-.8&&p.z<s.z1+.8){const t=(p.z-s.z0)/(s.z1-s.z0);return {s,t}}}return null}
+function updatePlayer(dt){const forward=new THREE.Vector3(Math.sin(player.yaw),0,Math.cos(player.yaw));const right=new THREE.Vector3(Math.cos(player.yaw),0,-Math.sin(player.yaw));const dir=new THREE.Vector3().addScaledVector(forward,-joyY).addScaledVector(right,joyX);if(dir.lengthSq()>1)dir.normalize();const speed=player.speed*(zooming?.35:1);const next=player.pos.clone().addScaledVector(dir,dt*speed);
+  // boundary clamp to upper / podium interior
+  const maxX=player.floor<=4?23.0:16.4,maxZ=player.floor<=4?20.5:20.0;next.x=THREE.MathUtils.clamp(next.x,-maxX,maxX);next.z=THREE.MathUtils.clamp(next.z,-maxZ,maxZ);
+  if(!blocked(new THREE.Vector3(next.x,player.pos.y,next.z))){player.pos.x=next.x;player.pos.z=next.z}
+  const stair=inStairRamp(player.pos);if(stair){const y=stair.s.y0+stair.t*H+1.68;player.pos.y=THREE.MathUtils.lerp(player.pos.y,y,Math.min(1,dt*10))}else{const f=floorFromY(player.pos.y);const target=(f-1)*H+1.7;player.pos.y=THREE.MathUtils.lerp(player.pos.y,target,Math.min(1,dt*8))}
+  player.floor=floorFromY(player.pos.y);
+  camera.position.copy(player.pos);camera.fov=THREE.MathUtils.lerp(camera.fov,player.targetZoom?50:73,1-Math.pow(.001,dt));camera.updateProjectionMatrix();camera.rotation.x=player.pitch;camera.rotation.y=player.yaw;
+}
+
+// controls
+let joyX=0,joyY=0,joyActive=false,joyId=null;const joy=$('#joystick'),knob=$('#joyKnob');
+function setJoy(cx,cy){const r=joy.getBoundingClientRect(),mx=r.left+r.width/2,my=r.top+r.height/2;let dx=cx-mx,dy=cy-my,lim=37;const l=Math.hypot(dx,dy);if(l>lim){dx=dx/l*lim;dy=dy/l*lim}joyX=dx/lim;joyY=dy/lim;knob.style.transform=`translate(${dx}px,${dy}px)`}
+function endJoy(){joyActive=false;joyX=joyY=0;knob.style.transform='translate(0,0)'}
+joy.addEventListener('pointerdown',e=>{joy.setPointerCapture(e.pointerId);joyActive=true;joyId=e.pointerId;setJoy(e.clientX,e.clientY)});joy.addEventListener('pointermove',e=>{if(joyActive&&e.pointerId===joyId)setJoy(e.clientX,e.clientY)});joy.addEventListener('pointerup',endJoy);joy.addEventListener('pointercancel',endJoy);
+let lookId=null,lastX=0,lastY=0,zooming=false,lookTimer=null;
+renderer.domElement.addEventListener('pointerdown',e=>{if(e.clientX<155&&e.clientY>innerHeight-170)return;lookId=e.pointerId;lastX=e.clientX;lastY=e.clientY;zooming=false;lookTimer=setTimeout(()=>{zooming=true;player.targetZoom=1},380);renderer.domElement.setPointerCapture?.(e.pointerId)});
+renderer.domElement.addEventListener('pointermove',e=>{if(e.pointerId!==lookId)return;const dx=e.clientX-lastX,dy=e.clientY-lastY;lastX=e.clientX;lastY=e.clientY;if(!zooming){player.yaw-=dx*.0042;player.pitch=THREE.MathUtils.clamp(player.pitch-dy*.0034,-1.25,1.25)}});
+function endLook(){if(lookTimer)clearTimeout(lookTimer);lookTimer=null;zooming=false;player.targetZoom=0;lookId=null}renderer.domElement.addEventListener('pointerup',endLook);renderer.domElement.addEventListener('pointercancel',endLook);
+$('#zoomBtn').addEventListener('pointerdown',()=>{zooming=true;player.targetZoom=1});$('#zoomBtn').addEventListener('pointerup',()=>{zooming=false;player.targetZoom=0});
+
+function toast(t){const e=$('#centerToast');e.textContent=t;e.style.opacity='1';clearTimeout(e._t);e._t=setTimeout(()=>e.style.opacity='0',1800)}
+function nearestInteract(){let best=null,bd=2.5;for(const i of interactables){const p=i.object.getWorldPosition(new THREE.Vector3());const d=p.distanceTo(player.pos);if(d<bd){bd=d;best=i}}return best}
+function chooseFloor(f){if(f===player.floor){toast('現在地は '+f+'F です');return}const e=elevators[0];e.target=f;e.moving=true;e.progress=0;$('#floorPanel').classList.remove('show');toast('エレベーターが '+f+'F へ移動します');}
+function updateElevator(dt){const e=elevators[0];if(!e.moving)return;const targetY=(e.target-1)*H+1.55;const dy=targetY-e.group.position.y;const step=Math.sign(dy)*Math.min(Math.abs(dy),dt*6.2);e.group.position.y+=step;if(Math.abs(dy)<.04){e.group.position.y=targetY;e.floor=e.target;e.moving=false;player.floor=e.floor;player.pos.set(0,(e.floor-1)*H+1.72,-4.0);toast(e.floor+'F に到着');}}
+renderer.domElement.addEventListener('pointerup',e=>{const x=e.clientX,y=e.clientY;const panel=$('#floorPanel');if(panel.classList.contains('show'))return;const rect=renderer.domElement.getBoundingClientRect();const ndc=new THREE.Vector2((x/innerWidth)*2-1,-(y/innerHeight)*2+1);const ray=new THREE.Raycaster();ray.setFromCamera(ndc,camera);const hits=ray.intersectObjects(interactables.map(i=>i.object),true);if(hits.length){const o=hits[0].object;const it=interactables.find(i=>i.object===o||i.object===hits[0].object);if(it){it.action();}}});
+
+function openFloorPanel(){const p=$('#floorPanel');if(p.classList.contains('show')){p.classList.remove('show');return}const near=nearestInteract();if(!near||near.type!=='elevator'){toast('エレベーターのパネルに近づいてください');return}p.classList.add('show')}
+function fillFloorGrid(){const g=$('#floorGrid');for(let f=1;f<=21;f++){const b=document.createElement('button');b.className='floorBtn';b.textContent=f+'F';b.onclick=()=>chooseFloor(f);g.appendChild(b)}}fillFloorGrid();
+$('#menuBtn').onclick=()=>toast('探索中：1～4Fに区民機能・アトリウム、11Fに災害対策と区長室、20～21Fに議会機能');
+$('#mapBtn').onclick=()=>{const m=$('#mapCard');m.style.display=m.style.display==='block'?'none':'block'};
+function fillMap(){const g=$('#mapGrid');for(let f=21;f>=1;f--){const n=document.createElement('div');n.className='mapNode';n.dataset.f=f;n.innerHTML=`<b>${f}F</b>${f===1?'エントランス・アトリウム':f===2?'区民サービス':f===3?'活動・保健':f===4?'保健所・光庭':f===11?'災害対策・区長室':f>=20?'議会': '執務室'}`;g.appendChild(n)}}fillMap();
+
+// procedural rain-speck / dust particles for depth
+const dustGeo=new THREE.BufferGeometry(),pts=[];for(let i=0;i<600;i++)pts.push((Math.random()-.5)*50,Math.random()*88,(Math.random()-.5)*50);dustGeo.setAttribute('position',new THREE.Float32BufferAttribute(pts,3));scene.add(new THREE.Points(dustGeo,new THREE.PointsMaterial({color:0xd8eefc,size:.025,transparent:true,opacity:.23})));
+
+function updatePeople(dt){for(const p of people){if(p.reception)continue;p.t+=dt*p.speed;const r=p.wander;const target=new THREE.Vector3(p.home.x+Math.sin(p.t*.8)*r,p.home.y,p.home.z+Math.cos(p.t*.63)*r);p.g.position.lerp(target,.02);p.g.rotation.y=Math.atan2(target.x-p.g.position.x,target.z-p.g.position.z)}}
+
+function missionCheck(){const goal=new THREE.Vector3(-12, (11-1)*H+1.0, -12);if(player.floor===11&&player.pos.distanceTo(goal)<2.8){$('#mission').innerHTML='🏆 <b>ゴール到達！</b>　区長室へようこそ。江戸川区新庁舎の探検をクリアしました。';toast('🎉 探検クリア！ 区長室に到着しました');}}
+
+function initWorld(){buildMassing();for(let f=1;f<=21;f++){if(f>=5)addWallsForFloor(f);if(f<=4)addWallsForFloor(f)}buildPodiumAndAtrium();buildLevels();for(let f=1;f<21;f++)addStairBetween(f);addEscalator();buildElevatorCore();buildWindowsAndPlants();makeRealityDetails();setupLighting();spawnVisitors();
+  // inaccessible exterior: a transparent safety volume just outside the playable envelope, so you feel glass but never walk outside
+  box('safetySouth',0,42,-24.4,60,84,.2,mat.darkGlass,true);box('safetyNorth',0,42,24.4,60,84,.2,mat.darkGlass,true);box('safetyWest',-28,42,0,.2,84,60,mat.darkGlass,true);box('safetyEast',28,42,0,.2,84,60,mat.darkGlass,true);
+}
+initWorld();
+
+let t0=0;const loadBar=$('#loadBar'),loadText=$('#loadText');let loaded=0;const stepsLoad=['実施設計の平面構成を配置…','アトリウムと光庭を構築…','21階のフロアと議会ゾーンを生成…','受付・職員・来庁者を配置…','照明・反射・PBR素材を調整…','探索システムを起動…'];const loadTimer=setInterval(()=>{loaded++;loadBar.style.width=(loaded/stepsLoad.length*100)+'%';loadText.textContent=stepsLoad[Math.min(loaded,stepsLoad.length)-1];if(loaded>=stepsLoad.length){clearInterval(loadTimer);setTimeout(()=>$('#loading').style.display='none',450)}},220);
+
+function animate(){requestAnimationFrame(animate);const dt=Math.min(clock.getDelta(),.05);if($('#loading').style.display==='none'){updatePlayer(dt);updateElevator(dt);updatePeople(dt);missionCheck();const near=nearestInteract();const boxEl=$('#interact');if(near){boxEl.textContent=near.type==='elevator'?'🔵 エレベーター：タップで階数パネル':'🚪 '+near.label+'：近づいて探索';boxEl.style.opacity='1'}else boxEl.style.opacity='0';if(player.floor!==lastFloor){lastFloor=player.floor;$('#floorBadge').textContent=player.floor+'F';}}
+ renderer.render(scene,camera)}let lastFloor=1;animate();
+
+addEventListener('resize',()=>{camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight)});
+
+// tap on the elevator lobby opens the real floor selector, but only when the player faces / is near it
+setInterval(()=>{const near=nearestInteract();if(near&&near.type==='elevator'&&near.object.userData.floor===1){/* breathing panel */}},150);
+// quick EV panel gesture: double tap while near lobby
+let lastTap=0;renderer.domElement.addEventListener('dblclick',()=>{if(Date.now()-lastTap<600)openFloorPanel();lastTap=Date.now()});
+</script>
+</body>
+</html>
