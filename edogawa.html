@@ -4,6 +4,8 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
 <title>江戸川区新庁舎 3D EXPLORER</title>
+<link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+<link rel="dns-prefetch" href="//cdn.jsdelivr.net">
 <style>
 :root{--glass:rgba(8,18,30,.68);--line:rgba(255,255,255,.18);--accent:#70c8ff;--gold:#ffd66d}
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
@@ -57,25 +59,24 @@ canvas{display:block;width:100%;height:100%}
 
 <script type="module">
 import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js';
-import {RoomEnvironment} from 'https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/environments/RoomEnvironment.js';
 
 const $=s=>document.querySelector(s);
 const app=$('#app');
-const renderer=new THREE.WebGLRenderer({antialias:true,powerPreference:'high-performance'});
-renderer.setPixelRatio(Math.min(devicePixelRatio,1.7));renderer.setSize(innerWidth,innerHeight);renderer.shadowMap.enabled=true;renderer.shadowMap.type=THREE.PCFSoftShadowMap;renderer.outputColorSpace=THREE.SRGBColorSpace;renderer.toneMapping=THREE.ACESFilmicToneMapping;renderer.toneMappingExposure=1.08;app.appendChild(renderer.domElement);
+const renderer=new THREE.WebGLRenderer({antialias:false,powerPreference:'high-performance',stencil:false,depth:true});
+const mobileMode=/Android|iPhone|iPad|iPod/i.test(navigator.userAgent);renderer.setPixelRatio(Math.min(devicePixelRatio,mobileMode?1.05:1.25));renderer.setSize(innerWidth,innerHeight);renderer.shadowMap.enabled=true;renderer.shadowMap.type=THREE.PCFSoftShadowMap;renderer.shadowMap.autoUpdate=false;renderer.outputColorSpace=THREE.SRGBColorSpace;renderer.toneMapping=THREE.ACESFilmicToneMapping;renderer.toneMappingExposure=1.08;app.appendChild(renderer.domElement);
 const scene=new THREE.Scene();scene.background=new THREE.Color(0x091522);scene.fog=new THREE.Fog(0x091522,18,120);
 const camera=new THREE.PerspectiveCamera(73,innerWidth/innerHeight,.05,180);camera.rotation.order='YXZ';
-const pmrem=new THREE.PMREMGenerator(renderer);scene.environment=pmrem.fromScene(new RoomEnvironment(renderer),0.08).texture;
+scene.environment=null;
 
 const clock=new THREE.Clock();
 const world=new THREE.Group();scene.add(world);
-const staticColliders=[];const stairs=[];const doors=[];const interactables=[];const people=[];const elevators=[];
+const staticColliders=[];const stairs=[];const doors=[];const interactables=[];const people=[];const elevators=[];const elevatorVisuals=[];
 const mat={
  concrete:new THREE.MeshStandardMaterial({color:0x9eaaa9,roughness:.82,metalness:.04}),
  white:new THREE.MeshStandardMaterial({color:0xe7ecea,roughness:.72}),
  wall:new THREE.MeshStandardMaterial({color:0xdfe5e4,roughness:.8}),
- glass:new THREE.MeshPhysicalMaterial({color:0x8ac8df,roughness:.08,metalness:.05,transmission:.62,transparent:true,opacity:.42}),
- darkGlass:new THREE.MeshPhysicalMaterial({color:0x143044,roughness:.08,metalness:.45,transmission:.18,transparent:true,opacity:.82}),
+ glass:new THREE.MeshStandardMaterial({color:0x8ac8df,roughness:.18,metalness:.08,transparent:true,opacity:.36}),
+ darkGlass:new THREE.MeshStandardMaterial({color:0x143044,roughness:.12,metalness:.38,transparent:true,opacity:.82}),
  steel:new THREE.MeshStandardMaterial({color:0x6b7680,roughness:.35,metalness:.8}),
  wood:new THREE.MeshStandardMaterial({color:0x9b6a44,roughness:.58}),
  wood2:new THREE.MeshStandardMaterial({color:0x6f4a31,roughness:.68}),
@@ -89,11 +90,13 @@ const mat={
  stair:new THREE.MeshStandardMaterial({color:0x7d8586,roughness:.7}),
  gold:new THREE.MeshStandardMaterial({color:0xc7a85a,roughness:.3,metalness:.55}),
  black:new THREE.MeshStandardMaterial({color:0x161c20,roughness:.62}),
- skin:new THREE.MeshStandardMaterial({color:0xd0a483,roughness:.86})
+ skin:new THREE.MeshStandardMaterial({color:0xd0a483,roughness:.86}),
+ tactile:mat.tactile,
+ bench:new THREE.MeshStandardMaterial({color:0x8a684d,roughness:.72})
 };
 const W=36,D=44,LOWW=52,LOWD=48,H=4.1;
 
-function box(name,x,y,z,sx,sy,sz,material,collide=true,parent=world){const g=new THREE.BoxGeometry(sx,sy,sz);const m=material||mat.white;const o=new THREE.Mesh(g,m);o.name=name;o.position.set(x,y,z);o.castShadow=sy>0.3;o.receiveShadow=true;parent.add(o);if(collide)staticColliders.push({min:new THREE.Vector3(x-sx/2,y-sy/2,z-sz/2),max:new THREE.Vector3(x+sx/2,y+sy/2,z+sz/2),obj:o});return o}
+function box(name,x,y,z,sx,sy,sz,material,collide=true,parent=world){const g=new THREE.BoxGeometry(sx,sy,sz);const m=material||mat.white;const o=new THREE.Mesh(g,m);o.name=name;o.position.set(x,y,z);o.castShadow=sy>0.3;o.receiveShadow=true;parent.add(o);if(collide){const fy=(Math.abs(y)>0.5?Math.max(1,Math.min(21,Math.round((y-sy/2)/H)+1)):0);staticColliders.push({min:new THREE.Vector3(x-sx/2,y-sy/2,z-sz/2),max:new THREE.Vector3(x+sx/2,y+sy/2,z+sz/2),obj:o,floor:fy});}return o}
 function cyl(name,x,y,z,r,h,material,parent=world,seg=16){const o=new THREE.Mesh(new THREE.CylinderGeometry(r,r,h,seg),material);o.name=name;o.position.set(x,y,z);o.castShadow=true;o.receiveShadow=true;parent.add(o);return o}
 function roundedBox(x,y,z,sx,sy,sz,material,r=.08){const shape=new THREE.Shape();const w=sx,h=sz;const q=r;shape.moveTo(-w/2+q,-h/2);shape.lineTo(w/2-q,-h/2);shape.quadraticCurveTo(w/2,-h/2,w/2,-h/2+q);shape.lineTo(w/2,h/2-q);shape.quadraticCurveTo(w/2,h/2,w/2-q,h/2);shape.lineTo(-w/2+q,h/2);shape.quadraticCurveTo(-w/2,h/2,-w/2,h/2-q);shape.lineTo(-w/2,-h/2+q);shape.quadraticCurveTo(-w/2,-h/2,-w/2+q,-h/2);const geo=new THREE.ExtrudeGeometry(shape,{depth:sy,bevelEnabled:true,bevelSegments:2,bevelSize:r,bevelThickness:r});const o=new THREE.Mesh(geo,material);o.rotation.x=-Math.PI/2;o.position.set(x,y-sy/2,z);o.castShadow=true;o.receiveShadow=true;world.add(o);return o}
 
@@ -119,13 +122,10 @@ function addCeilingLights(floor,positions){const y=(floor-1)*H+H-.34;for(const [
 
 // exterior massing / podium and tower, built from the implementation design: 21F, approx. 99m, lower green/horizontal podium, vertical upper volume
 function buildMassing(){
-  // hidden exterior shell just beyond playable skin, visible through atrium glazing only when appropriate
+  // Fast-start shell: do not synchronously create 21 interior slabs.
+  // Interior floors are streamed after the player can already move.
   box('podium-core',0,1.9,0,LOWW,3.8,LOWD,mat.concrete,false);
-  // upper tower with clipped-corner feel
   const towerGroup=new THREE.Group();towerGroup.name='vertical-tower';world.add(towerGroup);
-  const levels=21;
-  for(let f=1;f<=levels;f++) addFloorSlab(f, f<=4?LOWW:W, f<=4?LOWD:D);
-  // vertical fins inspired by exterior design, but kept outside playable area
   for(let i=-5;i<=5;i++){const x=i*3.0;box('facadeFin',x,43.0,-22.9,.22,82,.22,mat.steel,false,towerGroup);box('facadeFin',x,43.0,22.9,.22,82,.22,mat.steel,false,towerGroup)}
 }
 
@@ -181,7 +181,7 @@ function makeBalcony(f){const y=(f-1)*H+1.5;box('balcony rail',0,y,-22,22,.9,.18
 function buildOfficeFloor(f){const y=(f-1)*H;for(const x of [-13,-6,6,13]){box('office pod wall',x,y+H/2,0,5.9,H-.25,.18,mat.wall,true)};for(let z of [-15,15])box('office boundary',0,y+H/2,z,34,H-.25,.18,mat.wall,true);
   // core enclosure and equipment
   box('core west',-4.8,y+H/2,0,.18,H-0.25,18,mat.wall,true);box('core east',4.8,y+H/2,0,.18,H-0.25,18,mat.wall,true);
-  for(let r=0;r<14;r++){const x=(r%7)*2.9-8.7;const z=(Math.floor(r/7))*8-4;makeDesk(x,y+1.05,z,f%2?0x566b76:0x3e5a67);makeOfficePerson(x+.55,y+1.05,z+.35,f+r)}
+  const deskCount=mobileMode?8:10;for(let r=0;r<deskCount;r++){const x=(r%5)*3.6-7.2;const z=(Math.floor(r/5))*8-4;makeDesk(x,y+1.05,z,f%2?0x566b76:0x3e5a67);if(r%2===0)makeOfficePerson(x+.55,y+1.05,z+.35,f+r)}
   makeCopyZone(-13,y+0.9,-15);addCeilingLights(f,[[-12,-12],[-12,0],[-12,12],[12,-12],[12,0],[12,12]]);
 }
 function makeDesk(x,y,z,color){const m=new THREE.MeshStandardMaterial({color,roughness:.56});box('desk',x,y,z,2.1,.13,1.0,m,false);box('desk leg',x-.82,y-.45,z,.12,.9,.12,mat.steel,false);box('monitor',x,y+.34,z-.25,.7,.52,.08,mat.screen,false)}
@@ -202,11 +202,29 @@ function makeHelipad(f){const y=(f-1)*H+0.05;const h=new THREE.Mesh(new THREE.Cy
 function addStairBetween(f){const y0=(f-1)*H;const group=new THREE.Group();group.name='stairs-'+f;world.add(group);const x=15.0,z=-1;const steps=20;for(let i=0;i<steps;i++){const t=i/(steps-1);const sy=.2;const yy=y0+H*t+.1;const zz=z-5+10*t;const s=box('step',x,yy,zz,3,.2,.55,mat.stair,false,group);s.receiveShadow=true;}stairs.push({f,x,z0:z-5,z1:z+5,y0,y1:y0+H});box('stair rail',x-1.2,y0+2.0,z,0.12,H*.7,10,mat.steel,false,group);}
 function addEscalator(){const x=-13;const z=-8;for(let f=1;f<4;f++){const y0=(f-1)*H;const g=new THREE.Group();world.add(g);for(let i=0;i<18;i++){const t=i/17;const step=box('escalator step',x,y0+H*t+.2,z-5+8*t,2.8,.16,.38,mat.steel,false,g);step.rotation.x=-Math.atan2(H,8)};box('escalator side',x-1.55,y0+H/2,z,0.12,H,10,mat.darkGlass,false,g);box('escalator side',x+1.55,y0+H/2,z,0.12,H,10,mat.darkGlass,false,g)}}
 
-function buildElevatorCore(){const shaftW=9,shaftD=11;for(let f=1;f<=21;f++){const y=(f-1)*H;addElevatorLobby(f,y);}
-  const cabGroup=new THREE.Group();cabGroup.name='ELEVATOR-CAB';world.add(cabGroup);const y=1.55;box('cab floor',0,y-1.3,0,3.2,.1,3.2,mat.wood,false,cabGroup);box('cab back',0,y+.2,1.55,3.2,3.5,.08,mat.darkGlass,false,cabGroup);box('cab left',-1.55,y+.2,0,.08,3.5,3.2,mat.darkGlass,false,cabGroup);box('cab right',1.55,y+.2,0,.08,3.5,3.2,mat.darkGlass,false,cabGroup);for(let i=0;i<3;i++)box('cab lamp',-1+i,3.05,0,0.65,.05,2.4,new THREE.MeshStandardMaterial({color:0xffffff,emissive:0xffffff,emissiveIntensity:2.4}),false,cabGroup);cabGroup.position.set(0,1.55,-.1);elevators.push({group:cabGroup,floor:1,target:1,moving:false,progress:0});
+function buildElevatorCore(){
+  // Only the current floor's physical lobby/panel is created at startup.
+  // The floor selector itself is HTML, so 21 x 21 3D buttons are unnecessary.
+  addElevatorLobby(1,0);
+  const cabGroup=new THREE.Group();cabGroup.name='ELEVATOR-CAB';world.add(cabGroup);
+  box('cab floor',0,.25,0,3.2,.1,3.2,mat.wood,false,cabGroup);
+  box('cab back',0,1.75,1.55,3.2,3.5,.08,mat.darkGlass,false,cabGroup);
+  box('cab left',-1.55,1.75,0,.08,3.5,3.2,mat.darkGlass,false,cabGroup);
+  box('cab right',1.55,1.75,0,.08,3.5,3.2,mat.darkGlass,false,cabGroup);
+  for(let i=0;i<3;i++)box('cab lamp',-1+i,3.05,0,.65,.05,2.4,new THREE.MeshStandardMaterial({color:0xffffff,emissive:0xffffff,emissiveIntensity:2.4}),false,cabGroup);
+  cabGroup.position.set(0,1.55,-.1);elevators.push({group:cabGroup,floor:1,target:1,moving:false,progress:0});
 }
-function addElevatorLobby(f,y){const panel=box('EV panel',-5.45,y+1.65,-5.7,.08,1.7,.45,mat.darkGlass,false);for(let i=1;i<=21;i++){const py=y+1.83+((i-1)%7)*.19;const p=box('EV button '+i,-5.5,py,-5.44,.03,.12,.12,mat.blue,false);p.userData.floor=i;p.userData.type='evbutton';interactables.push({type:'elevator',object:p,label:'エレベーター '+i+'F',position:new THREE.Vector3(-5.55,y+1.3,-5),action:()=>chooseFloor(i)});}
-  makeSign(0,y+2.4,-5.9,'エレベーターホール',String(f).padStart(2,'0')+'F');
+function clearElevatorLobbyObjects(){
+  for(const o of elevatorVisuals){o.parent?.remove(o)}
+  elevatorVisuals.length=0;
+  for(let i=interactables.length-1;i>=0;i--){if(interactables[i].type==='elevator'){interactables.splice(i,1)}}
+}
+function addElevatorLobby(f,y){
+  clearElevatorLobbyObjects();
+  const panel=box('EV panel',-5.45,y+1.65,-5.7,.08,1.7,.45,mat.darkGlass,false);elevatorVisuals.push(panel);
+  panel.userData.type='evpanel';
+  interactables.push({type:'elevator',object:panel,label:'エレベーター',position:new THREE.Vector3(-5.55,y+1.3,-5),action:()=>openFloorPanel()});
+  const sign=makeSign(0,y+2.4,-5.9,'エレベーターホール',String(f).padStart(2,'0')+'F');elevatorVisuals.push(sign);
 }
 
 function makeReceptionist(x,y,z,label){const g=new THREE.Group();g.position.set(x,y,z);cyl('skirt',0,.5,0,.32,.8,new THREE.MeshStandardMaterial({color:0x324a69,roughness:.72}),g);cyl('upper',0,1.02,0,.29,.42,new THREE.MeshStandardMaterial({color:0xf0f4f6,roughness:.7}),g);cyl('head',0,1.47,0,.19,.32,mat.skin,g);cyl('hair',0,1.65,0,.23,.2,mat.black,g);world.add(g);people.push({g,home:g.position.clone(),t:0,speed:.08,wander:.5,reception:true});}
@@ -216,17 +234,17 @@ function buildWindowsAndPlants(){for(let f=1;f<=4;f++){const y=(f-1)*H+1.65;for(
 
 function makeRealityDetails(){
   // tactile materials, seating, service counters, fire cabinets, trash sorting, tactile paving
-  for(let f=1;f<=4;f++){const y=(f-1)*H;for(let z=-18;z<=18;z+=6){for(let x=-9;x<=9;x+=3){box('tactile',x,y+.02,z,.72,.025,.18,new THREE.MeshStandardMaterial({color:0xd3bd62,roughness:.8}),false)}}}
-  for(let f=1;f<=4;f++){const y=(f-1)*H;for(const x of [-19,19]){box('bench',x,y+.55,-2,3.1,.45,.62,mat.wood,false);box('benchBack',x,y+1.05,-2.25,3.1,.85,.12,mat.wood2,false)}}
+  for(let f=1;f<=4;f++){const y=(f-1)*H;for(let z=-18;z<=18;z+=6){for(let x=-9;x<=9;x+=3){box('tactile',x,y+.02,z,.72,.025,.18,mat.tactile,false)}}}
+  for(let f=1;f<=4;f++){const y=(f-1)*H;for(const x of [-19,19]){box('bench',x,y+.55,-2,3.1,.45,.62,mat.bench,false);box('benchBack',x,y+1.05,-2.25,3.1,.85,.12,mat.wood2,false)}}
 }
 
-function setupLighting(){const hemi=new THREE.HemisphereLight(0xb8dcf4,0x253026,1.5);scene.add(hemi);const sun=new THREE.DirectionalLight(0xffffff,2.3);sun.position.set(-35,55,-45);sun.castShadow=true;sun.shadow.mapSize.set(2048,2048);sun.shadow.camera.left=-55;sun.shadow.camera.right=55;sun.shadow.camera.top=70;sun.shadow.camera.bottom=-70;world.add(sun);const warm=new THREE.PointLight(0xffcf9f,0.7,30);warm.position.set(0,3,-15);world.add(warm)}
+function setupLighting(){const hemi=new THREE.HemisphereLight(0xb8dcf4,0x253026,1.5);scene.add(hemi);const sun=new THREE.DirectionalLight(0xffffff,2.3);sun.position.set(-35,55,-45);sun.castShadow=true;sun.shadow.mapSize.set(mobileMode?768:1024,mobileMode?768:1024);sun.shadow.camera.left=-55;sun.shadow.camera.right=55;sun.shadow.camera.top=70;sun.shadow.camera.bottom=-70;world.add(sun);const warm=new THREE.PointLight(0xffcf9f,0.7,30);warm.position.set(0,3,-15);world.add(warm)}
 
 // collision and player
 const player={pos:new THREE.Vector3(0,1.7,-18.5),yaw:0,pitch:0,vel:new THREE.Vector3(),speed:3.6,floor:1,zoom:0,targetZoom:0};camera.position.copy(player.pos);camera.rotation.set(0,0,0);
 function floorFromY(y){return Math.max(1,Math.min(21,Math.round(y/H)+1))}
 function aabbHit(p,r,box){return p.x>box.min.x-r&&p.x<box.max.x+r&&p.z>box.min.z-r&&p.z<box.max.z+r}
-function blocked(next){const r=.42;for(const c of staticColliders){if(c.blocked===false)continue;if(aabbHit(next,r,c))return true}return false}
+function blocked(next){const r=.42;const pf=player.floor;for(const c of staticColliders){if(c.blocked===false)continue;if(c.floor!==0&&c.floor!==pf)continue;if(aabbHit(next,r,c))return true}return false}
 function inStairRamp(p){for(const s of stairs){if(Math.abs(p.x-s.x)<2.1&&p.z>s.z0-.8&&p.z<s.z1+.8){const t=(p.z-s.z0)/(s.z1-s.z0);return {s,t}}}return null}
 function updatePlayer(dt){const forward=new THREE.Vector3(Math.sin(player.yaw),0,Math.cos(player.yaw));const right=new THREE.Vector3(Math.cos(player.yaw),0,-Math.sin(player.yaw));const dir=new THREE.Vector3().addScaledVector(forward,-joyY).addScaledVector(right,joyX);if(dir.lengthSq()>1)dir.normalize();const speed=player.speed*(zooming?.35:1);const next=player.pos.clone().addScaledVector(dir,dt*speed);
   // boundary clamp to upper / podium interior
@@ -251,7 +269,7 @@ $('#zoomBtn').addEventListener('pointerdown',()=>{zooming=true;player.targetZoom
 function toast(t){const e=$('#centerToast');e.textContent=t;e.style.opacity='1';clearTimeout(e._t);e._t=setTimeout(()=>e.style.opacity='0',1800)}
 function nearestInteract(){let best=null,bd=2.5;for(const i of interactables){const p=i.object.getWorldPosition(new THREE.Vector3());const d=p.distanceTo(player.pos);if(d<bd){bd=d;best=i}}return best}
 function chooseFloor(f){if(f===player.floor){toast('現在地は '+f+'F です');return}const e=elevators[0];e.target=f;e.moving=true;e.progress=0;$('#floorPanel').classList.remove('show');toast('エレベーターが '+f+'F へ移動します');}
-function updateElevator(dt){const e=elevators[0];if(!e.moving)return;const targetY=(e.target-1)*H+1.55;const dy=targetY-e.group.position.y;const step=Math.sign(dy)*Math.min(Math.abs(dy),dt*6.2);e.group.position.y+=step;if(Math.abs(dy)<.04){e.group.position.y=targetY;e.floor=e.target;e.moving=false;player.floor=e.floor;player.pos.set(0,(e.floor-1)*H+1.72,-4.0);toast(e.floor+'F に到着');}}
+function updateElevator(dt){const e=elevators[0];if(!e.moving)return;const targetY=(e.target-1)*H+1.55;const dy=targetY-e.group.position.y;const step=Math.sign(dy)*Math.min(Math.abs(dy),dt*6.2);e.group.position.y+=step;if(Math.abs(dy)<.04){e.group.position.y=targetY;e.floor=e.target;e.moving=false;player.floor=e.floor;player.pos.set(0,(e.floor-1)*H+1.72,-4.0);addElevatorLobby(e.floor,(e.floor-1)*H);toast(e.floor+'F に到着');}}
 renderer.domElement.addEventListener('pointerup',e=>{const x=e.clientX,y=e.clientY;const panel=$('#floorPanel');if(panel.classList.contains('show'))return;const rect=renderer.domElement.getBoundingClientRect();const ndc=new THREE.Vector2((x/innerWidth)*2-1,-(y/innerHeight)*2+1);const ray=new THREE.Raycaster();ray.setFromCamera(ndc,camera);const hits=ray.intersectObjects(interactables.map(i=>i.object),true);if(hits.length){const o=hits[0].object;const it=interactables.find(i=>i.object===o||i.object===hits[0].object);if(it){it.action();}}});
 
 function openFloorPanel(){const p=$('#floorPanel');if(p.classList.contains('show')){p.classList.remove('show');return}const near=nearestInteract();if(!near||near.type!=='elevator'){toast('エレベーターのパネルに近づいてください');return}p.classList.add('show')}
@@ -261,19 +279,59 @@ $('#mapBtn').onclick=()=>{const m=$('#mapCard');m.style.display=m.style.display=
 function fillMap(){const g=$('#mapGrid');for(let f=21;f>=1;f--){const n=document.createElement('div');n.className='mapNode';n.dataset.f=f;n.innerHTML=`<b>${f}F</b>${f===1?'エントランス・アトリウム':f===2?'区民サービス':f===3?'活動・保健':f===4?'保健所・光庭':f===11?'災害対策・区長室':f>=20?'議会': '執務室'}`;g.appendChild(n)}}fillMap();
 
 // procedural rain-speck / dust particles for depth
-const dustGeo=new THREE.BufferGeometry(),pts=[];for(let i=0;i<600;i++)pts.push((Math.random()-.5)*50,Math.random()*88,(Math.random()-.5)*50);dustGeo.setAttribute('position',new THREE.Float32BufferAttribute(pts,3));scene.add(new THREE.Points(dustGeo,new THREE.PointsMaterial({color:0xd8eefc,size:.025,transparent:true,opacity:.23})));
+const dustGeo=new THREE.BufferGeometry(),pts=[];for(let i=0;i<220;i++)pts.push((Math.random()-.5)*50,Math.random()*88,(Math.random()-.5)*50);dustGeo.setAttribute('position',new THREE.Float32BufferAttribute(pts,3));scene.add(new THREE.Points(dustGeo,new THREE.PointsMaterial({color:0xd8eefc,size:.025,transparent:true,opacity:.23})));
 
 function updatePeople(dt){for(const p of people){if(p.reception)continue;p.t+=dt*p.speed;const r=p.wander;const target=new THREE.Vector3(p.home.x+Math.sin(p.t*.8)*r,p.home.y,p.home.z+Math.cos(p.t*.63)*r);p.g.position.lerp(target,.02);p.g.rotation.y=Math.atan2(target.x-p.g.position.x,target.z-p.g.position.z)}}
 
 function missionCheck(){const goal=new THREE.Vector3(-12, (11-1)*H+1.0, -12);if(player.floor===11&&player.pos.distanceTo(goal)<2.8){$('#mission').innerHTML='🏆 <b>ゴール到達！</b>　区長室へようこそ。江戸川区新庁舎の探検をクリアしました。';toast('🎉 探検クリア！ 区長室に到着しました');}}
 
-function initWorld(){buildMassing();for(let f=1;f<=21;f++){if(f>=5)addWallsForFloor(f);if(f<=4)addWallsForFloor(f)}buildPodiumAndAtrium();buildLevels();for(let f=1;f<21;f++)addStairBetween(f);addEscalator();buildElevatorCore();buildWindowsAndPlants();makeRealityDetails();setupLighting();spawnVisitors();
-  // inaccessible exterior: a transparent safety volume just outside the playable envelope, so you feel glass but never walk outside
-  box('safetySouth',0,42,-24.4,60,84,.2,mat.darkGlass,true);box('safetyNorth',0,42,24.4,60,84,.2,mat.darkGlass,true);box('safetyWest',-28,42,0,.2,84,60,mat.darkGlass,true);box('safetyEast',28,42,0,.2,84,60,mat.darkGlass,true);
+// Fast-start architecture: build only the entrance first, show the game immediately,
+// then stream the remaining floors in small browser tasks. This avoids one huge blocking
+// JavaScript task on smartphones while preserving the full procedural building.
+const floorSpecs={
+2:[[-14,10,8,16,'区民サービス窓口'],[15,11,8,15,'相談フロア'],[-15,-10,8,13,'証明・申請窓口'],[15,-10,8,13,'多目的スペース']],
+3:[[-15,10,8,15,'保健所受付'],[15,10,8,15,'健康相談'],[-15,-10,8,13,'子育て支援'],[15,-10,8,13,'市民活動スペース']],
+4:[[-15,10,8,15,'保健所機能'],[15,10,8,15,'健診・相談'],[-15,-10,8,13,'保健所会議室'],[15,-10,8,13,'多目的スペース']]
+};
+function buildFloorStreaming(f){
+  addWallsForFloor(f);
+  if(f<=4){const ls=[[-15,-8],[-15,9],[15,-8],[15,9]];for(const r of floorSpecs[f])addRoom(r[0],r[1],r[2],r[3],f,r[4]);addCeilingLights(f,ls);makeBalcony(f)}
+  else if(f===11) buildDisasterFloor(11);
+  else if(f<=19) buildOfficeFloor(f);
+  else buildAssemblyFloor(f);
 }
-initWorld();
+function initWorldFast(){
+  // Critical path: entrance + first playable floor + basic lighting/controls.
+  buildMassing(); addFloorSlab(1,LOWW,LOWD); addWallsForFloor(1); buildPodiumAndAtrium();
+  buildElevatorCore(); addStairBetween(1); addEscalator(); buildWindowsAndPlants();
+  makeRealityDetails(); setupLighting(); spawnVisitors();
+  box('safetySouth',0,42,-24.4,60,84,.2,mat.darkGlass,true);box('safetyNorth',0,42,24.4,60,84,.2,mat.darkGlass,true);box('safetyWest',-28,42,0,.2,84,60,mat.darkGlass,true);box('safetyEast',28,42,0,.2,84,60,mat.darkGlass,true);
+  renderer.shadowMap.needsUpdate=true;
+}
+const loadBar=$('#loadBar'),loadText=$('#loadText');
+function setLoading(p,msg){loadBar.style.width=p+'%';loadText.textContent=msg}
+const bootStart=performance.now();
+initWorldFast();
+console.info('[Edogawa3D] critical world built in',Math.round(performance.now()-bootStart),'ms');
+// Start rendering as soon as the entrance exists. The loading screen is intentionally
+// removed immediately after the critical path, while the rest streams in behind it.
+setLoading(18,'エントランスを起動…');
+requestAnimationFrame(()=>{$('#loading').style.display='none';toast('新庁舎へようこそ');});
 
-let t0=0;const loadBar=$('#loadBar'),loadText=$('#loadText');let loaded=0;const stepsLoad=['実施設計の平面構成を配置…','アトリウムと光庭を構築…','21階のフロアと議会ゾーンを生成…','受付・職員・来庁者を配置…','照明・反射・PBR素材を調整…','探索システムを起動…'];const loadTimer=setInterval(()=>{loaded++;loadBar.style.width=(loaded/stepsLoad.length*100)+'%';loadText.textContent=stepsLoad[Math.min(loaded,stepsLoad.length)-1];if(loaded>=stepsLoad.length){clearInterval(loadTimer);setTimeout(()=>$('#loading').style.display='none',450)}},220);
+const streamQueue=[2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21];
+let streamIndex=0;
+function streamNextFloor(){
+  const start=performance.now();
+  const budget=5;
+  while(streamIndex<streamQueue.length && performance.now()-start<budget){
+    const f=streamQueue[streamIndex++];
+    buildFloorStreaming(f);
+    setLoading(18+(streamIndex/streamQueue.length)*78, f+'Fを構築中…');
+  }
+  if(streamIndex<streamQueue.length){setTimeout(streamNextFloor,0)}
+  else{makeHelipad(21);renderer.shadowMap.needsUpdate=true;setLoading(100,'探索準備完了');}
+}
+setTimeout(streamNextFloor,450);
 
 function animate(){requestAnimationFrame(animate);const dt=Math.min(clock.getDelta(),.05);if($('#loading').style.display==='none'){updatePlayer(dt);updateElevator(dt);updatePeople(dt);missionCheck();const near=nearestInteract();const boxEl=$('#interact');if(near){boxEl.textContent=near.type==='elevator'?'🔵 エレベーター：タップで階数パネル':'🚪 '+near.label+'：近づいて探索';boxEl.style.opacity='1'}else boxEl.style.opacity='0';if(player.floor!==lastFloor){lastFloor=player.floor;$('#floorBadge').textContent=player.floor+'F';}}
  renderer.render(scene,camera)}let lastFloor=1;animate();
