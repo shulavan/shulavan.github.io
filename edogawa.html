@@ -58,9 +58,12 @@ canvas{display:block;width:100%;height:100%}
 <div id="loading"><div class="loadTitle">江戸川区新庁舎</div><div class="loadSub">実施設計資料をもとに、21階建ての探索空間を構築しています</div><div class="bar"><i id="loadBar"></i></div><div class="loadSub" id="loadText">照明・素材・アトリウムを準備中…</div></div>
 
 <script type="module">
-import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js';
-
 const $=s=>document.querySelector(s);
+const loadBar=$('#loadBar'),loadText=$('#loadText');
+async function loadThree(){const urls=['https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js','https://unpkg.com/three@0.160.0/build/three.module.js','https://esm.sh/three@0.160.0'];let last;for(const url of urls){try{loadText.textContent='3Dエンジンを読み込んでいます…';return await import(url)}catch(e){last=e}}throw last||new Error('Three.jsを読み込めませんでした')}
+let THREE;try{THREE=await Promise.race([loadThree(),new Promise((_,rej)=>setTimeout(()=>rej(new Error('3Dエンジンの読み込みが30秒を超えました。通信環境を確認してください。')),30000))])}catch(e){loadText.textContent='起動できません：'+e.message;const sub=document.querySelector('.loadSub');if(sub)sub.textContent='3Dエンジンの通信に失敗しました。通信環境を確認して再読み込みしてください。';const b=document.createElement('button');b.textContent='↻ 再読み込み';b.style.cssText='padding:12px 22px;border:1px solid rgba(255,255,255,.3);border-radius:12px;background:rgba(255,255,255,.1);color:#fff;font-size:14px';b.onclick=()=>location.reload();document.querySelector('#loading').appendChild(b);throw e}
+
+
 const app=$('#app');
 const renderer=new THREE.WebGLRenderer({antialias:false,powerPreference:'high-performance',stencil:false,depth:true});
 const mobileMode=/Android|iPhone|iPad|iPod/i.test(navigator.userAgent);renderer.setPixelRatio(Math.min(devicePixelRatio,mobileMode?1.05:1.25));renderer.setSize(innerWidth,innerHeight);renderer.shadowMap.enabled=true;renderer.shadowMap.type=THREE.PCFSoftShadowMap;renderer.shadowMap.autoUpdate=false;renderer.outputColorSpace=THREE.SRGBColorSpace;renderer.toneMapping=THREE.ACESFilmicToneMapping;renderer.toneMappingExposure=1.08;app.appendChild(renderer.domElement);
@@ -301,37 +304,15 @@ function buildFloorStreaming(f){
   else buildAssemblyFloor(f);
 }
 function initWorldFast(){
-  // Critical path: entrance + first playable floor + basic lighting/controls.
-  buildMassing(); addFloorSlab(1,LOWW,LOWD); addWallsForFloor(1); buildPodiumAndAtrium();
-  buildElevatorCore(); addStairBetween(1); addEscalator(); buildWindowsAndPlants();
-  makeRealityDetails(); setupLighting(); spawnVisitors();
-  box('safetySouth',0,42,-24.4,60,84,.2,mat.darkGlass,true);box('safetyNorth',0,42,24.4,60,84,.2,mat.darkGlass,true);box('safetyWest',-28,42,0,.2,84,60,mat.darkGlass,true);box('safetyEast',28,42,0,.2,84,60,mat.darkGlass,true);
-  renderer.shadowMap.needsUpdate=true;
+ buildMassing();addFloorSlab(1,LOWW,LOWD);addWallsForFloor(1);
+ box('entry glass',0,2,-21.7,22,3.7,.18,mat.glass,true);box('reception desk',0,1.15,-16,8,.8,1.5,mat.wood2,false);
+ box('reception counter',0,1.65,-15.25,8,.12,.35,mat.gold,false);makeReceptionist(0,1,-14.65,'受付');makeSign(0,3,-18,'総合案内 / ENTRANCE HALL','WELCOME');setupLighting();renderer.shadowMap.needsUpdate=true;
 }
-const loadBar=$('#loadBar'),loadText=$('#loadText');
 function setLoading(p,msg){loadBar.style.width=p+'%';loadText.textContent=msg}
-const bootStart=performance.now();
-initWorldFast();
-console.info('[Edogawa3D] critical world built in',Math.round(performance.now()-bootStart),'ms');
-// Start rendering as soon as the entrance exists. The loading screen is intentionally
-// removed immediately after the critical path, while the rest streams in behind it.
-setLoading(18,'エントランスを起動…');
-requestAnimationFrame(()=>{$('#loading').style.display='none';toast('新庁舎へようこそ');});
-
-const streamQueue=[2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21];
-let streamIndex=0;
-function streamNextFloor(){
-  const start=performance.now();
-  const budget=5;
-  while(streamIndex<streamQueue.length && performance.now()-start<budget){
-    const f=streamQueue[streamIndex++];
-    buildFloorStreaming(f);
-    setLoading(18+(streamIndex/streamQueue.length)*78, f+'Fを構築中…');
-  }
-  if(streamIndex<streamQueue.length){setTimeout(streamNextFloor,0)}
-  else{makeHelipad(21);renderer.shadowMap.needsUpdate=true;setLoading(100,'探索準備完了');}
-}
-setTimeout(streamNextFloor,450);
+const bootStart=performance.now();setLoading(5,'エントランスを起動中…');initWorldFast();console.info('[Edogawa3D] critical world built in',Math.round(performance.now()-bootStart),'ms');requestAnimationFrame(()=>{$('#loading').style.display='none';toast('新庁舎へようこそ')});
+const bootTasks=[['操作系を準備',()=>buildElevatorCore()],['エントランス設備',()=>buildPodiumAndAtrium()],['階段・エスカレーター',()=>{addStairBetween(1);addEscalator()}],['植物・窓・案内設備',()=>{buildWindowsAndPlants();makeRealityDetails()}],['来庁者・職員',()=>spawnVisitors()],['安全境界',()=>{box('safetySouth',0,42,-24.4,60,84,.2,mat.darkGlass,true);box('safetyNorth',0,42,24.4,60,84,.2,mat.darkGlass,true);box('safetyWest',-28,42,0,.2,84,60,mat.darkGlass,true);box('safetyEast',28,42,0,.2,84,60,mat.darkGlass,true)}]];
+let bootTaskIndex=0;function runBootTask(){if(bootTaskIndex<bootTasks.length){const [label,fn]=bootTasks[bootTaskIndex++];try{fn()}catch(e){console.error('Boot task failed',label,e)}setLoading(8+bootTaskIndex*2,label+'…');setTimeout(runBootTask,80)}else streamNextFloor()}setTimeout(runBootTask,120);
+const streamQueue=[2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21];let streamIndex=0;function streamNextFloor(){if(streamIndex>=streamQueue.length){makeHelipad(21);renderer.shadowMap.needsUpdate=true;return}const f=streamQueue[streamIndex++];setTimeout(()=>{try{buildFloorStreaming(f)}catch(e){console.error('Floor build failed',f,e)}setLoading(20+(streamIndex/streamQueue.length)*80,f+'Fを構築中…');streamNextFloor()},40)}
 
 function animate(){requestAnimationFrame(animate);const dt=Math.min(clock.getDelta(),.05);if($('#loading').style.display==='none'){updatePlayer(dt);updateElevator(dt);updatePeople(dt);missionCheck();const near=nearestInteract();const boxEl=$('#interact');if(near){boxEl.textContent=near.type==='elevator'?'🔵 エレベーター：タップで階数パネル':'🚪 '+near.label+'：近づいて探索';boxEl.style.opacity='1'}else boxEl.style.opacity='0';if(player.floor!==lastFloor){lastFloor=player.floor;$('#floorBadge').textContent=player.floor+'F';}}
  renderer.render(scene,camera)}let lastFloor=1;animate();
